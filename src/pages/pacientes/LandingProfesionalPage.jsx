@@ -11,13 +11,15 @@ import {
   Video,
   Building2,
   ArrowRight,
+  BadgeCheck,
 } from "lucide-react";
 
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom';
 
 const profesionalPublico = {
   nombre: "Martín García",
   especialidad: "Médico Clínico",
+  matricula: "MN 12345",
   descripcion:
     "Más de 12 años de experiencia en medicina clínica y preventiva. Atención personalizada, escucha activa y diagnóstico integral para tu bienestar.",
   modalidad: "Ambas",
@@ -64,44 +66,42 @@ export default function LandingProfesionalPage() {
     (d) => d.dia === diaSeleccionado
   );
 
-  const navigate = useNavigate()
-  const { slug } = useParams()
+  const navigate = useNavigate();
+  const { slug } = useParams();
 
   return (
     <div
       className="min-h-screen bg-gray-50"
       style={{ fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif" }}
     >
-      {/* ── Header Sticky ── */}
+      {/* Header Sticky */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
               <span className="text-white text-xs font-bold">TS</span>
             </div>
-            <span className="text-sm font-semibold text-gray-800">
-              TurnoSalud
-            </span>
+            <span className="text-sm font-semibold text-gray-800">TurnoSalud</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500 hidden sm:block">
               {profesionalPublico.nombre}
             </span>
             <button
-  onClick={() => navigate(`/${slug}/reservar`)}
-  className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
->
-  Reservar turno
-  <ChevronRight size={14} />
-</button>
+              onClick={() => navigate(`/${slug}/reservar`)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              Reservar turno
+              <ChevronRight size={14} />
+            </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-10 space-y-10">
-        {/* ── Hero ── */}
+        {/* Hero */}
         <section className="bg-white rounded-2xl border border-gray-100 p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 shadow-sm">
-          {/* Avatar circular */}
+          {/* Avatar */}
           <div className="relative shrink-0">
             <div
               className="rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 font-bold text-4xl border-4 border-white shadow-md"
@@ -116,16 +116,23 @@ export default function LandingProfesionalPage() {
             <p className="text-xs font-semibold tracking-widest text-blue-600 uppercase mb-1">
               {profesionalPublico.especialidad}
             </p>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <h1 className="text-3xl font-bold text-gray-900 mb-1">
               Dr. {profesionalPublico.nombre}
             </h1>
+
+            {/* Matrícula */}
+            {profesionalPublico.matricula && (
+              <div className="flex items-center gap-1.5 justify-center sm:justify-start mb-2">
+                <BadgeCheck size={14} className="text-blue-500" />
+                <span className="text-xs text-gray-500 font-medium">
+                  Mat. {profesionalPublico.matricula}
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center gap-1 justify-center sm:justify-start mb-3">
               {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  size={14}
-                  className="fill-amber-400 text-amber-400"
-                />
+                <Star key={i} size={14} className="fill-amber-400 text-amber-400" />
               ))}
               <span className="text-sm text-gray-500 ml-1">
                 {profesionalPublico.calificacion} · {profesionalPublico.totalReseñas} reseñas
@@ -137,7 +144,7 @@ export default function LandingProfesionalPage() {
           </div>
         </section>
 
-        {/* ── Info Badges ── */}
+        {/* Info Badges */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Modalidad */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
@@ -153,13 +160,9 @@ export default function LandingProfesionalPage() {
                 <Monitor size={16} className="text-blue-500" />
               )}
             </div>
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">
-              Modalidad
-            </p>
+            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Modalidad</p>
             <p className="text-sm font-semibold text-gray-800">
-              {profesionalPublico.modalidad === "Ambas"
-                ? "Presencial y Virtual"
-                : profesionalPublico.modalidad}
+              {profesionalPublico.modalidad === "Ambas" ? "Presencial y Virtual" : profesionalPublico.modalidad}
             </p>
             {profesionalPublico.modalidad !== "Virtual" && (
               <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
@@ -172,27 +175,18 @@ export default function LandingProfesionalPage() {
           {/* Duración */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
             <Clock size={16} className="text-blue-500 mb-2" />
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">
-              Duración del turno
-            </p>
-            <p className="text-sm font-semibold text-gray-800">
-              {profesionalPublico.duracionTurno} minutos
-            </p>
+            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Duración del turno</p>
+            <p className="text-sm font-semibold text-gray-800">{profesionalPublico.duracionTurno} minutos</p>
             <p className="text-xs text-gray-400 mt-0.5">Por consulta</p>
           </div>
 
           {/* Obras Sociales */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
             <Shield size={16} className="text-blue-500 mb-2" />
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">
-              Obras sociales
-            </p>
+            <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-1">Obras sociales</p>
             <div className="flex flex-wrap gap-1">
               {profesionalPublico.obrasSociales.slice(0, 3).map((os) => (
-                <span
-                  key={os}
-                  className="text-xs bg-blue-50 text-blue-600 font-medium px-2 py-0.5 rounded-full"
-                >
+                <span key={os} className="text-xs bg-blue-50 text-blue-600 font-medium px-2 py-0.5 rounded-full">
                   {os}
                 </span>
               ))}
@@ -205,11 +199,9 @@ export default function LandingProfesionalPage() {
           </div>
         </section>
 
-        {/* ── Paso a Paso ── */}
+        {/* Pasos */}
         <section className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">
-            ¿Cómo sacar un turno?
-          </h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-6">¿Cómo sacar un turno?</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {pasos.map((paso, i) => (
               <div key={paso.num} className="flex flex-col gap-3">
@@ -222,39 +214,25 @@ export default function LandingProfesionalPage() {
                   )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-blue-600 mb-0.5">
-                    {paso.num}
-                  </p>
-                  <p className="text-sm font-semibold text-gray-800 mb-1">
-                    {paso.titulo}
-                  </p>
-                  <p className="text-xs text-gray-400 leading-relaxed">
-                    {paso.desc}
-                  </p>
+                  <p className="text-xs font-bold text-blue-600 mb-0.5">{paso.num}</p>
+                  <p className="text-sm font-semibold text-gray-800 mb-1">{paso.titulo}</p>
+                  <p className="text-xs text-gray-400 leading-relaxed">{paso.desc}</p>
                 </div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* ── Grilla de Horarios ── */}
+        {/* Grilla de Horarios */}
         <section className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-1">
-            Días disponibles
-          </h2>
-          <p className="text-sm text-gray-400 mb-5">
-            Seleccioná un día para ver los horarios.
-          </p>
+          <h2 className="text-lg font-bold text-gray-900 mb-1">Días disponibles</h2>
+          <p className="text-sm text-gray-400 mb-5">Seleccioná un día para ver los horarios.</p>
 
-          {/* Chips de días */}
           <div className="flex flex-wrap gap-2 mb-6">
             {profesionalPublico.diasAtencion.map((d) => (
               <button
                 key={d.dia}
-                onClick={() => {
-                  setDiaSeleccionado(d.dia);
-                  setHorarioSeleccionado(null);
-                }}
+                onClick={() => { setDiaSeleccionado(d.dia); setHorarioSeleccionado(null); }}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
                   diaSeleccionado === d.dia
                     ? "bg-blue-600 text-white border-blue-600 shadow-sm"
@@ -262,18 +240,13 @@ export default function LandingProfesionalPage() {
                 }`}
               >
                 {d.dia}
-                <span
-                  className={`ml-1.5 text-xs ${
-                    diaSeleccionado === d.dia ? "text-blue-200" : "text-gray-400"
-                  }`}
-                >
+                <span className={`ml-1.5 text-xs ${diaSeleccionado === d.dia ? "text-blue-200" : "text-gray-400"}`}>
                   {d.horarios.length}
                 </span>
               </button>
             ))}
           </div>
 
-          {/* Horarios del día seleccionado */}
           {diaActivo ? (
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-3">
@@ -298,28 +271,24 @@ export default function LandingProfesionalPage() {
           ) : (
             <div className="rounded-xl bg-gray-50 border border-dashed border-gray-200 py-8 text-center">
               <Calendar size={22} className="text-gray-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">
-                Seleccioná un día para ver los turnos disponibles
-              </p>
+              <p className="text-sm text-gray-400">Seleccioná un día para ver los turnos disponibles</p>
             </div>
           )}
         </section>
 
-        {/* ── CTA Final ── */}
+        {/* CTA Final */}
         <section className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-8 text-center shadow-lg">
-          <h2 className="text-2xl font-bold text-white mb-2">
-            ¿Listo para reservar?
-          </h2>
+          <h2 className="text-2xl font-bold text-white mb-2">¿Listo para reservar?</h2>
           <p className="text-blue-100 text-sm mb-6 max-w-sm mx-auto">
             Confirmá tu turno en menos de 2 minutos, sin llamadas y sin esperar.
           </p>
           <button
-  onClick={() => navigate(`/${slug}/reservar`)}
-  className="inline-flex items-center gap-2 bg-white text-blue-600 font-semibold px-8 py-3.5 rounded-xl hover:bg-blue-50 transition-colors text-sm shadow-sm"
->
-  Ver turnos disponibles
-  <ArrowRight size={16} />
-</button>
+            onClick={() => navigate(`/${slug}/reservar`)}
+            className="inline-flex items-center gap-2 bg-white text-blue-600 font-semibold px-8 py-3.5 rounded-xl hover:bg-blue-50 transition-colors text-sm shadow-sm"
+          >
+            Ver turnos disponibles
+            <ArrowRight size={16} />
+          </button>
           {horarioSeleccionado && diaSeleccionado && (
             <p className="text-blue-200 text-xs mt-4">
               Turno preseleccionado: {diaSeleccionado} a las {horarioSeleccionado}
@@ -328,12 +297,9 @@ export default function LandingProfesionalPage() {
         </section>
       </main>
 
-      {/* Footer minimal */}
       <footer className="max-w-3xl mx-auto px-4 py-6 border-t border-gray-100 mt-4">
         <p className="text-center text-xs text-gray-400">
-          Powered by{" "}
-          <span className="font-semibold text-blue-600">TurnoSalud</span> · Tu
-          salud, sin filas.
+          Powered by <span className="font-semibold text-blue-600">TurnoSalud</span> · Tu salud, sin filas.
         </p>
       </footer>
     </div>

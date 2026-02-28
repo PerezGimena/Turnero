@@ -165,11 +165,14 @@ export default function DashboardProfesionalPage() {
           </h1>
           <p className="text-xs text-slate-400 capitalize">{hoy}</p>
         </div>
+
+        {/* Este div pertenece a el simbolo de notificacion que  todavia no tiene uso*/}
         <div className="flex items-center gap-2">
-          <button className="relative w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors text-slate-500">
-            <Bell size={16} />
+          {/* <button className="relative w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors text-slate-500">
+           <Bell size={16} /> 
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500" />
-          </button>
+          </button> */}
+
           <button
             onClick={() => setModalNuevoTurno(true)}
             className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
