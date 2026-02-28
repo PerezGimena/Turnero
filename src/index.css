@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos base opcionales para asegurar el fondo y texto por defecto */
+body {
+  @apply bg-white text-slate-900 antialiased font-sans;
+}
