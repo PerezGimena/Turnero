@@ -9,6 +9,7 @@ export { default as GestionTurnoPage } from './pacientes/GestionTurnoPage.jsx'
 
 // Módulo Profesional
 export { default as LoginProfesionalPage } from './profesional/LoginPage.jsx'
+export { default as RegistroPage } from './profesional/RegistroPage.jsx'
 export { default as DashboardProfesionalPage } from './profesional/DashboardProfesionalPage.jsx'
 export { default as AgendaProfesionalPage } from './profesional/AgendaProfesionalPage.jsx'
 export { default as TurnosPendientesPage } from './profesional/TurnosPendientesPage.jsx'

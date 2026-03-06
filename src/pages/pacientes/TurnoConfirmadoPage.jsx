@@ -1,4 +1,6 @@
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import axios from "axios";
 import {
   Calendar,
   Clock,
@@ -10,21 +12,11 @@ import {
   Link2,
   CalendarPlus,
   Settings,
+  Loader2, 
+  AlertCircle
 } from "lucide-react";
 
-// ── Mock ──────────────────────────────────────────────────────────────────────
-const profesionalMock = {
-  nombre: "Martín García",
-  especialidad: "Médico Clínico",
-  modalidad: "Presencial",
-  direccion: "Av. Corrientes 1234, CABA",
-  linkVideoLlamada: null,
-  duracionTurno: 30,
-};
-
-const turnoId = "abc123";
-const refNumero = "TRN-" + Math.random().toString(36).toUpperCase().slice(2, 8);
-
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function formatFecha(fechaStr) {
   if (!fechaStr) return "";
   return new Date(fechaStr + "T12:00:00").toLocaleDateString("es-AR", {
@@ -35,30 +27,34 @@ function formatFecha(fechaStr) {
   });
 }
 
-function generarICS(fecha, hora, profesional) {
-  if (!fecha || !hora) return;
+function generarICS(fecha, hora, profesional, referencia) {
+  if (!fecha || !hora || !profesional) return;
 
   const [anio, mes, dia] = fecha.split("-").map(Number);
   const [hh, mm] = hora.split(":").map(Number);
+  const duracion = profesional.duracionTurno || 30;
 
   function pad(n) { return String(n).padStart(2, "0"); }
 
   const dtStart = `${anio}${pad(mes)}${pad(dia)}T${pad(hh)}${pad(mm)}00`;
-  const endDate = new Date(anio, mes - 1, dia, hh, mm + profesional.duracionTurno);
+  const endDate = new Date(anio, mes - 1, dia, hh, mm + duracion);
   const dtEnd = `${endDate.getFullYear()}${pad(endDate.getMonth() + 1)}${pad(endDate.getDate())}T${pad(endDate.getHours())}${pad(endDate.getMinutes())}00`;
+  
+  const nombreCompleto = `${profesional.nombre} ${profesional.apellido}`;
+  const ubicacion = profesional.modalidad === "Virtual" ? "Virtual" : (profesional.direccion || "Consultorio");
 
   const ics = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//TurnoSalud//ES",
     "BEGIN:VEVENT",
-    `UID:${refNumero}@turnosalud.app`,
+    `UID:${referencia}@turnosalud.app`,
     `DTSTAMP:${dtStart}`,
     `DTSTART:${dtStart}`,
     `DTEND:${dtEnd}`,
-    `SUMMARY:Turno con Dr. ${profesional.nombre}`,
-    `DESCRIPTION:${profesional.especialidad} · ${profesional.duracionTurno} min`,
-    `LOCATION:${profesional.direccion || "Virtual"}`,
+    `SUMMARY:Turno con Dr. ${nombreCompleto}`,
+    `DESCRIPTION:${profesional.especialidad} · ${duracion} min`,
+    `LOCATION:${ubicacion}`,
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
@@ -67,7 +63,7 @@ function generarICS(fecha, hora, profesional) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `turno-${refNumero}.ics`;
+  a.download = `turno-${referencia}.ics`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -76,10 +72,59 @@ function generarICS(fecha, hora, profesional) {
 export default function TurnoConfirmadoPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   const fecha = searchParams.get("fecha");
   const hora = searchParams.get("hora");
+  const referencia = location.state?.referencia;
+
+  const [profesional, setProfesional] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchProfesional = async () => {
+      try {
+        const { data } = await axios.get(`http://localhost:3001/api/publico/${slug}`);
+        if (data.ok) {
+           setProfesional(data.data);
+        } else {
+           setError("No se pudo cargar la información del profesional.");
+        }
+      } catch (err) {
+        console.error(err);
+        setError("Error de conexión");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (slug) {
+        fetchProfesional();
+    }
+  }, [slug]);
+
+
+  if (loading) {
+     return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+           <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        </div>
+     );
+  }
+
+  if (error || !profesional) {
+     return (
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+           <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+           <p className="text-gray-600">{error || "Profesional no encontrado"}</p>
+           <button onClick={() => navigate("/")} className="mt-4 text-blue-600 underline">Volver al inicio</button>
+        </div>
+     );
+  }
+
+  const initials = `${profesional.nombre?.[0] || ""}${profesional.apellido?.[0] || ""}`.toUpperCase();
 
   return (
     <div
@@ -131,13 +176,13 @@ export default function TurnoConfirmadoPage() {
           {/* Header card */}
           <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-5 py-4 border-b border-green-100 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
-              MG
+              {initials}
             </div>
             <div>
               <p className="text-sm font-bold text-gray-900">
-                Dr. {profesionalMock.nombre}
+                Dr./a. {profesional.nombre} {profesional.apellido}
               </p>
-              <p className="text-xs text-gray-500">{profesionalMock.especialidad}</p>
+              <p className="text-xs text-gray-500">{profesional.especialidad}</p>
             </div>
             <div className="ml-auto">
               <span className="text-xs bg-green-100 text-green-700 font-semibold px-2.5 py-1 rounded-full">
@@ -167,7 +212,7 @@ export default function TurnoConfirmadoPage() {
             </div>
 
             <div className="flex items-center gap-3 px-5 py-3.5">
-              {profesionalMock.modalidad === "Virtual" ? (
+              {profesional.modalidad === "Virtual" ? (
                 <Video size={15} className="text-blue-400 shrink-0" />
               ) : (
                 <MapPin size={15} className="text-blue-400 shrink-0" />
@@ -175,24 +220,15 @@ export default function TurnoConfirmadoPage() {
               <div>
                 <p className="text-xs text-gray-400">Modalidad</p>
                 <p className="text-sm font-semibold text-gray-800">
-                  {profesionalMock.modalidad === "Virtual"
+                  {profesional.modalidad === "Virtual"
                     ? "Videollamada"
                     : "Presencial"}
                 </p>
-                {profesionalMock.modalidad !== "Virtual" && (
+                {profesional.modalidad !== "Virtual" && (
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {profesionalMock.direccion}
+                    {profesional.direccion || "Dirección no configurada"}
                   </p>
                 )}
-                {profesionalMock.modalidad === "Virtual" &&
-                  profesionalMock.linkVideoLlamada && (
-                    <a
-                      href={profesionalMock.linkVideoLlamada}
-                      className="text-xs text-blue-500 underline mt-0.5 inline-block"
-                    >
-                      Abrir link de videollamada
-                    </a>
-                  )}
               </div>
             </div>
 
@@ -201,7 +237,7 @@ export default function TurnoConfirmadoPage() {
               <div>
                 <p className="text-xs text-gray-400">Duración</p>
                 <p className="text-sm font-semibold text-gray-800">
-                  {profesionalMock.duracionTurno} minutos
+                  {profesional.duracionTurno} minutos
                 </p>
               </div>
             </div>
@@ -232,7 +268,7 @@ export default function TurnoConfirmadoPage() {
           <p className="text-xs text-gray-400">
             Número de turno:{" "}
             <span className="font-mono font-semibold text-gray-600">
-              #{refNumero}
+              #{referencia || "---"}
             </span>
           </p>
         </div>
@@ -240,7 +276,7 @@ export default function TurnoConfirmadoPage() {
         {/* ── Botones ── */}
         <div className="flex flex-col gap-2">
           <button
-            onClick={() => generarICS(fecha, hora, profesionalMock)}
+            onClick={() => generarICS(fecha, hora, profesional, referencia)}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors shadow-sm"
           >
             <CalendarPlus size={15} />
@@ -248,7 +284,7 @@ export default function TurnoConfirmadoPage() {
           </button>
 
           <button
-            onClick={() => navigate(`/${slug}/turno/${turnoId}`)}
+            onClick={() => navigate(`/${slug}/gestion`)}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
           >
             <Settings size={15} />

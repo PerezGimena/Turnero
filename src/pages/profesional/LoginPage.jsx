@@ -3,8 +3,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link, useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, CheckCircle2 } from 'lucide-react'
+import { Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react'
 import useAuthStore from '../../store/useAuthStore.jsx'
+import axios from 'axios'
 
 // Esquema de validación
 const loginSchema = z.object({
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const { login } = useAuthStore()
   const [mostrarPassword, setMostrarPassword] = useState(false)
   const [cargando, setCargando] = useState(false)
+  const [errorLogin, setErrorLogin] = useState('')
 
   const {
     register,
@@ -28,21 +30,33 @@ export default function LoginPage() {
 
   const procesarLogin = async (data) => {
     setCargando(true)
-    
-    // Simulación de llamada a API
-    setTimeout(() => {
-      // Login exitoso simulado
-      login({
-        id: '1',
-        nombre: 'Juan Pérez',
+    setErrorLogin('')
+
+    try {
+      const response = await axios.post('http://localhost:3001/api/auth/profesional/login', {
         email: data.email,
-        rol: 'profesional',
-        slug: 'dr-juan-perez'
-      }, 'token-falso-123')
-      
+        password: data.password
+      })
+
+      if (response.data.ok) {
+        const { token, usuario } = response.data.data
+        
+        // Guardar en localStorage
+        localStorage.setItem('token', token)
+        
+        // Actualizar estado global
+        login(usuario, token)
+        
+        // Redireccionar
+        navigate('/profesional/dashboard')
+      }
+    } catch (error) {
+      console.error('Error de login:', error)
+      const msg = error.response?.data?.message || 'Ocurrió un error al iniciar sesión. Intentalo de nuevo.'
+      setErrorLogin(msg)
+    } finally {
       setCargando(false)
-      navigate('/profesional/dashboard')
-    }, 1500)
+    }
   }
 
   return (
@@ -96,6 +110,13 @@ export default function LoginPage() {
             <h1 className="text-3xl font-display font-bold text-slate-900">Bienvenido/a de nuevo</h1>
             <p className="text-slate-500">Ingresá tus credenciales para acceder al panel.</p>
           </div>
+
+          {errorLogin && (
+            <div className="p-4 rounded-lg bg-red-50 border border-red-200 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">{errorLogin}</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit(procesarLogin)} className="space-y-6">
             
@@ -158,7 +179,7 @@ export default function LoginPage() {
           </div>
 
           <div className="text-center">
-            <Link to="#" className="text-sm font-medium text-slate-900 underline hover:text-slate-700">
+            <Link to="/profesional/registro" className="text-sm font-medium text-slate-900 underline hover:text-slate-700">
               Crear una cuenta profesional
             </Link>
           </div>

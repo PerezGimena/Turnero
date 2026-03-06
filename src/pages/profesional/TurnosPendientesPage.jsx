@@ -1,52 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import useAuthStore from "../../store/useAuthStore";
 import {
   CheckCircle2, XCircle, Clock, Calendar, Mail, Phone,
-  User, Filter, ChevronDown, X, AlertCircle, Search,
-  MapPin, Video, History, ChevronRight,
+  X, AlertCircle, Search, MapPin, Video, History, Loader2,
 } from "lucide-react";
-
-// ── Mock data ─────────────────────────────────────────────────────────────────
-const pendientesMock = [
-  {
-    id: 1, paciente: "Juan Pérez", email: "juanperez@email.com", telefono: "+54 11 1234-5678",
-    fecha: "2026-03-04", hora: "14:30", duracion: 30, modalidad: "Presencial",
-    motivo: "Consulta de control general", obraSocial: "OSDE", hace: "hace 2 horas",
-    historialTurnos: [
-      { fecha: "2025-11-10", estado: "CONFIRMADO", motivo: "Control rutinario" },
-      { fecha: "2025-08-22", estado: "CONFIRMADO", motivo: "Chequeo anual" },
-    ],
-  },
-  {
-    id: 2, paciente: "Laura Martínez", email: "laura.m@gmail.com", telefono: "+54 351 555-0011",
-    fecha: "2026-03-04", hora: "15:00", duracion: 30, modalidad: "Virtual",
-    motivo: null, obraSocial: "Swiss Medical", hace: "hace 4 horas",
-    historialTurnos: [],
-  },
-  {
-    id: 3, paciente: "Hernán Díaz", email: "hernan.d@hotmail.com", telefono: "+54 11 8899-1122",
-    fecha: "2026-03-05", hora: "09:00", duracion: 30, modalidad: "Presencial",
-    motivo: "Resultado de análisis de sangre", obraSocial: "PAMI", hace: "hace 6 horas",
-    historialTurnos: [
-      { fecha: "2025-12-01", estado: "CANCELADO", motivo: "Análisis de sangre" },
-    ],
-  },
-  {
-    id: 4, paciente: "Sofía Romero", email: "sofi.romero@icloud.com", telefono: "+54 11 7766-3344",
-    fecha: "2026-03-06", hora: "10:30", duracion: 30, modalidad: "Virtual",
-    motivo: "Primera consulta", obraSocial: "Galeno", hace: "hace 1 día",
-    historialTurnos: [],
-  },
-  {
-    id: 5, paciente: "Tomás Villanueva", email: "tomas.v@outlook.com", telefono: "+54 261 444-9900",
-    fecha: "2026-03-09", hora: "14:00", duracion: 30, modalidad: "Presencial",
-    motivo: "Dolor de cabeza recurrente", obraSocial: "Medifé", hace: "hace 1 día",
-    historialTurnos: [
-      { fecha: "2025-10-15", estado: "CONFIRMADO", motivo: "Cefalea" },
-      { fecha: "2025-07-03", estado: "CONFIRMADO", motivo: "Control" },
-      { fecha: "2025-03-18", estado: "CONFIRMADO", motivo: "Primera consulta" },
-    ],
-  },
-];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatFecha(fechaStr) {
@@ -56,6 +14,7 @@ function formatFecha(fechaStr) {
 }
 
 function initials(nombre) {
+  if (!nombre) return "?";
   return nombre.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase();
 }
 
@@ -69,44 +28,140 @@ const COLORES_AVATAR = [
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function TurnosPendientesPage() {
-  const [turnos, setTurnos] = useState(pendientesMock);
-  const [filtro, setFiltro] = useState("todos");
+  const { token } = useAuthStore();
+  const [turnos, setTurnos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [busqueda, setBusqueda] = useState("");
   const [panelTurno, setPanelTurno] = useState(null);
   const [modalRechazar, setModalRechazar] = useState(null);
   const [motivoRechazo, setMotivoRechazo] = useState("");
   const [confirmandoTodos, setConfirmandoTodos] = useState(false);
+  const [accionando, setAccionando] = useState(null); // id del turno en acción
 
-  function confirmar(id) {
-    setTurnos(ts => ts.filter(t => t.id !== id));
-    if (panelTurno?.id === id) setPanelTurno(null);
+  const headers = { Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    fetchPendientes();
+  }, []);
+
+  async function fetchPendientes() {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await axios.get(
+        "http://localhost:3001/api/profesional/turnos?estado=pendiente&porPagina=100",
+        { headers }
+      );
+      if (data.ok) {
+        setTurnos(data.data);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("No se pudieron cargar los turnos pendientes.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function rechazar(id) {
-    setTurnos(ts => ts.filter(t => t.id !== id));
-    setModalRechazar(null);
-    setMotivoRechazo("");
-    if (panelTurno?.id === id) setPanelTurno(null);
+  async function confirmar(id) {
+    setAccionando(id);
+    try {
+      await axios.patch(
+        `http://localhost:3001/api/profesional/turnos/${id}/confirmar`,
+        {},
+        { headers }
+      );
+      setTurnos(ts => ts.filter(t => t.id !== id));
+      if (panelTurno?.id === id) setPanelTurno(null);
+    } catch (err) {
+      alert("No se pudo confirmar el turno.");
+    } finally {
+      setAccionando(null);
+    }
+  }
+
+  async function rechazar(id) {
+    setAccionando(id);
+    try {
+      await axios.patch(
+        `http://localhost:3001/api/profesional/turnos/${id}/rechazar`,
+        { motivo: motivoRechazo || "Rechazado por el profesional" },
+        { headers }
+      );
+      setTurnos(ts => ts.filter(t => t.id !== id));
+      setModalRechazar(null);
+      setMotivoRechazo("");
+      if (panelTurno?.id === id) setPanelTurno(null);
+    } catch (err) {
+      alert("No se pudo rechazar el turno.");
+    } finally {
+      setAccionando(null);
+    }
   }
 
   async function confirmarTodos() {
     setConfirmandoTodos(true);
-    await new Promise(r => setTimeout(r, 900));
-    setTurnos([]);
-    setPanelTurno(null);
-    setConfirmandoTodos(false);
+    try {
+      await Promise.all(
+        turnos.map(t =>
+          axios.patch(
+            `http://localhost:3001/api/profesional/turnos/${t.id}/confirmar`,
+            {},
+            { headers }
+          )
+        )
+      );
+      setTurnos([]);
+      setPanelTurno(null);
+    } catch (err) {
+      alert("Algunos turnos no pudieron confirmarse.");
+      fetchPendientes();
+    } finally {
+      setConfirmandoTodos(false);
+    }
   }
 
   const filtrados = turnos.filter(t => {
-    const matchBusqueda = t.paciente.toLowerCase().includes(busqueda.toLowerCase()) ||
-      t.obraSocial.toLowerCase().includes(busqueda.toLowerCase());
-    return matchBusqueda;
+    const nombre = t.paciente ? `${t.paciente.nombre} ${t.paciente.apellido}` : "";
+    const os = t.paciente?.obraSocial || "";
+    return (
+      nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+      os.toLowerCase().includes(busqueda.toLowerCase())
+    );
   });
+
+  // Normalizar turno para el panel
+  function normalizarTurno(t) {
+    return {
+      id: t.id,
+      paciente: t.paciente ? `${t.paciente.nombre} ${t.paciente.apellido}` : "Paciente",
+      email: t.paciente?.email || "-",
+      telefono: t.paciente?.telefono || "-",
+      obraSocial: t.paciente?.obraSocial || "Particular",
+      fecha: t.fecha,
+      hora: t.horaInicio?.slice(0, 5) || "-",
+      duracion: t.duracion || 30,
+      modalidad: t.modalidad ? t.modalidad.charAt(0).toUpperCase() + t.modalidad.slice(1) : "Presencial",
+      motivo: t.motivoConsulta || null,
+      hace: t.createdAt ? calcularHace(t.createdAt) : "",
+    };
+  }
+
+  function calcularHace(fechaISO) {
+    const diff = Date.now() - new Date(fechaISO).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `hace ${mins} min`;
+    const hs = Math.floor(mins / 60);
+    if (hs < 24) return `hace ${hs} hora${hs > 1 ? "s" : ""}`;
+    const dias = Math.floor(hs / 24);
+    return `hace ${dias} día${dias > 1 ? "s" : ""}`;
+  }
 
   return (
     <div className="h-full flex bg-slate-50 overflow-hidden" style={{ fontFamily: "'DM Sans','Helvetica Neue',sans-serif" }}>
 
-      {/* ── Columna principal ── */}
+      {/* Columna principal */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
         {/* Header */}
@@ -129,37 +184,29 @@ export default function TurnosPendientesPage() {
             )}
           </div>
 
-          {/* Barra búsqueda + filtros */}
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-xs">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                placeholder="Buscar por nombre u obra social..."
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
-              />
-            </div>
-            <div className="flex bg-slate-100 rounded-xl p-0.5 gap-0.5">
-              {[
-                { val: "todos", label: "Todos" },
-                { val: "fecha", label: "Por fecha" },
-                { val: "os", label: "Obra social" },
-              ].map(f => (
-                <button key={f.val} onClick={() => setFiltro(f.val)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
-                    ${filtro === f.val ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-                  {f.label}
-                </button>
-              ))}
-            </div>
+          <div className="relative max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre u obra social..."
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all"
+            />
           </div>
         </div>
 
         {/* Lista */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-          {filtrados.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 size={24} className="text-emerald-500 animate-spin" />
+            </div>
+          ) : error ? (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-red-600 text-sm">
+              <AlertCircle size={16} /> {error}
+            </div>
+          ) : filtrados.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-20">
               <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mb-4">
                 <CheckCircle2 size={28} className="text-emerald-400" />
@@ -168,22 +215,26 @@ export default function TurnosPendientesPage() {
               <p className="text-sm text-slate-400">No tenés turnos por confirmar.</p>
             </div>
           ) : (
-            filtrados.map((turno, idx) => (
-              <TurnoCard
-                key={turno.id}
-                turno={turno}
-                colorAvatar={COLORES_AVATAR[idx % COLORES_AVATAR.length]}
-                onConfirmar={() => confirmar(turno.id)}
-                onRechazar={() => setModalRechazar(turno)}
-                onVerDetalle={() => setPanelTurno(turno)}
-                activo={panelTurno?.id === turno.id}
-              />
-            ))
+            filtrados.map((turnoRaw, idx) => {
+              const turno = normalizarTurno(turnoRaw);
+              return (
+                <TurnoCard
+                  key={turno.id}
+                  turno={turno}
+                  colorAvatar={COLORES_AVATAR[idx % COLORES_AVATAR.length]}
+                  onConfirmar={() => confirmar(turno.id)}
+                  onRechazar={() => setModalRechazar(turno)}
+                  onVerDetalle={() => setPanelTurno(turno)}
+                  activo={panelTurno?.id === turno.id}
+                  cargando={accionando === turno.id}
+                />
+              );
+            })
           )}
         </div>
       </div>
 
-      {/* ── Panel lateral deslizable ── */}
+      {/* Panel lateral */}
       {panelTurno && (
         <>
           <div className="fixed inset-0 z-30 lg:hidden bg-black/20" onClick={() => setPanelTurno(null)} />
@@ -200,9 +251,8 @@ export default function TurnosPendientesPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-              {/* Avatar + nombre */}
               <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm ${COLORES_AVATAR[pendientesMock.findIndex(t => t.id === panelTurno.id) % COLORES_AVATAR.length]}`}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm ${COLORES_AVATAR[0]}`}>
                   {initials(panelTurno.paciente)}
                 </div>
                 <div>
@@ -211,7 +261,6 @@ export default function TurnosPendientesPage() {
                 </div>
               </div>
 
-              {/* Datos contacto */}
               <div className="space-y-2.5">
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Contacto</p>
                 <div className="flex items-center gap-2 text-sm text-slate-700">
@@ -222,7 +271,6 @@ export default function TurnosPendientesPage() {
                 </div>
               </div>
 
-              {/* Datos turno */}
               <div className="space-y-2.5">
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Turno solicitado</p>
                 <div className="bg-slate-50 rounded-xl p-3 space-y-2">
@@ -248,37 +296,20 @@ export default function TurnosPendientesPage() {
                 </div>
               </div>
 
-              {/* Historial */}
-              <div className="space-y-2.5">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                  <History size={12} /> Turnos anteriores
+              {panelTurno.hace && (
+                <p className="text-xs text-slate-400 flex items-center gap-1">
+                  <Clock size={11} /> Solicitado {panelTurno.hace}
                 </p>
-                {panelTurno.historialTurnos.length === 0 ? (
-                  <p className="text-xs text-slate-400">Primera vez que solicita turno.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {panelTurno.historialTurnos.map((h, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${h.estado === "CONFIRMADO" ? "bg-emerald-400" : "bg-red-400"}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-slate-600 truncate">{h.motivo || "Sin motivo"}</p>
-                          <p className="text-xs text-slate-400">{new Date(h.fecha + "T12:00:00").toLocaleDateString("es-AR")}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
-            {/* Acciones panel */}
             <div className="px-5 py-4 border-t border-slate-100 space-y-2">
-              <button onClick={() => confirmar(panelTurno.id)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold transition-colors">
+              <button onClick={() => confirmar(panelTurno.id)} disabled={accionando === panelTurno.id}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold transition-colors disabled:opacity-60">
                 <CheckCircle2 size={15} /> Confirmar turno
               </button>
-              <button onClick={() => setModalRechazar(panelTurno)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 hover:bg-red-50 text-red-500 text-sm font-bold transition-colors">
+              <button onClick={() => setModalRechazar(panelTurno)} disabled={accionando === panelTurno.id}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-red-200 hover:bg-red-50 text-red-500 text-sm font-bold transition-colors disabled:opacity-60">
                 <XCircle size={15} /> Rechazar
               </button>
             </div>
@@ -286,7 +317,7 @@ export default function TurnosPendientesPage() {
         </>
       )}
 
-      {/* ── Modal Rechazar ── */}
+      {/* Modal Rechazar */}
       {modalRechazar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModalRechazar(null)} />
@@ -306,8 +337,7 @@ export default function TurnosPendientesPage() {
                 <span className="font-semibold">{modalRechazar.hora} hs</span>.
               </p>
               <label className="text-xs font-semibold text-slate-600 block mb-1.5">
-                Motivo del rechazo{" "}
-                <span className="text-slate-400 font-normal">— opcional</span>
+                Motivo del rechazo <span className="text-slate-400 font-normal">— opcional</span>
               </label>
               <textarea
                 rows={3}
@@ -326,8 +356,8 @@ export default function TurnosPendientesPage() {
                 className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
                 Cancelar
               </button>
-              <button onClick={() => rechazar(modalRechazar.id)}
-                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors">
+              <button onClick={() => rechazar(modalRechazar.id)} disabled={accionando === modalRechazar.id}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-60">
                 Rechazar turno
               </button>
             </div>
@@ -339,7 +369,7 @@ export default function TurnosPendientesPage() {
 }
 
 // ── Card individual ───────────────────────────────────────────────────────────
-function TurnoCard({ turno, colorAvatar, onConfirmar, onRechazar, onVerDetalle, activo }) {
+function TurnoCard({ turno, colorAvatar, onConfirmar, onRechazar, onVerDetalle, activo, cargando }) {
   return (
     <div
       onClick={onVerDetalle}
@@ -347,18 +377,18 @@ function TurnoCard({ turno, colorAvatar, onConfirmar, onRechazar, onVerDetalle, 
         ${activo ? "border-emerald-300 ring-2 ring-emerald-100" : "border-slate-100 hover:border-slate-200"}`}
     >
       <div className="flex items-start gap-4 px-5 py-4">
-        {/* Avatar */}
         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${colorAvatar}`}>
           {initials(turno.paciente)}
         </div>
 
-        {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
             <p className="text-sm font-bold text-slate-800">{turno.paciente}</p>
-            <span className="text-xs bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-full">
-              {turno.obraSocial}
-            </span>
+            {turno.obraSocial && turno.obraSocial !== "Particular" && (
+              <span className="text-xs bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-full">
+                {turno.obraSocial}
+              </span>
+            )}
           </div>
 
           <p className="text-xs text-slate-400 mb-2">
@@ -383,24 +413,24 @@ function TurnoCard({ turno, colorAvatar, onConfirmar, onRechazar, onVerDetalle, 
           </div>
 
           {turno.motivo && (
-            <p className="text-xs text-slate-400 italic mt-1.5">
-              "{turno.motivo}"
-            </p>
+            <p className="text-xs text-slate-400 italic mt-1.5">"{turno.motivo}"</p>
           )}
 
-          <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
-            <Clock size={10} /> Solicitado {turno.hace}
-          </p>
+          {turno.hace && (
+            <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
+              <Clock size={10} /> Solicitado {turno.hace}
+            </p>
+          )}
         </div>
 
-        {/* Acciones */}
         <div className="shrink-0 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={onConfirmar}
-            className="flex items-center gap-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl transition-colors">
-            <CheckCircle2 size={13} /> Confirmar
+          <button onClick={onConfirmar} disabled={cargando}
+            className="flex items-center gap-1.5 text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl transition-colors disabled:opacity-60">
+            {cargando ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+            Confirmar
           </button>
-          <button onClick={onRechazar}
-            className="w-8 h-8 rounded-xl border border-red-200 hover:bg-red-50 flex items-center justify-center text-red-400 transition-colors">
+          <button onClick={onRechazar} disabled={cargando}
+            className="w-8 h-8 rounded-xl border border-red-200 hover:bg-red-50 flex items-center justify-center text-red-400 transition-colors disabled:opacity-60">
             <XCircle size={15} />
           </button>
         </div>

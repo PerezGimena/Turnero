@@ -1,12 +1,22 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Camera, CheckCircle, XCircle, ExternalLink, Save,
   Signal, Wifi, Battery, Star, Shield, Clock, MapPin,
-  Building2, Video, BadgeCheck, ChevronRight
+  Building2, Video, BadgeCheck, ChevronRight,
+  ToggleLeft, ToggleRight
 } from 'lucide-react';
+import axios from 'axios';
+import useAuthStore from '../../store/useAuthStore';
+
+const DIAS_SEMANA = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"];
 
 const PerfilPublico = () => {
+  const { token, logout } = useAuthStore();
   const fileInputRef = useRef(null);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [mensajeGuardado, setMensajeGuardado] = useState(null);
 
   const [perfil, setPerfil] = useState({
     nombre: '',
@@ -15,19 +25,109 @@ const PerfilPublico = () => {
     especialidadOtra: '',
     matricula: '',
     descripcion: '',
-    modalidad: '',
+    modalidad: 'Presencial',
     direccion: '',
     aceptaObrasSociales: false,
     obrasSociales: [],
-    duracionTurno: '30',
-    slug: 'tunombre',
-    fotoPerfil: null
+    telefono: '',
+    precioConsulta: '',
+    duracionTurno: 30,
+    slug: '',
+    fotoPerfil: null,
+    confirmacionAutomatica: false,
+    dias: {
+      lunes:     { activo: true,  inicio: "09:00", fin: "17:00" },
+      martes:    { activo: true,  inicio: "09:00", fin: "17:00" },
+      miercoles: { activo: true,  inicio: "09:00", fin: "17:00" },
+      jueves:    { activo: true,  inicio: "09:00", fin: "17:00" },
+      viernes:   { activo: true,  inicio: "09:00", fin: "17:00" },
+      sabado:    { activo: false, inicio: "09:00", fin: "13:00" },
+      domingo:   { activo: false, inicio: "09:00", fin: "13:00" },
+    }
   });
 
   const [slugDisponible, setSlugDisponible] = useState(true);
   const [obrasSocialesInput, setObrasSocialesInput] = useState("");
 
   const OBRAS_COMUNES = ["OSDE", "Swiss Medical", "Galeno", "PAMI", "Medifé", "IOMA", "Accord Salud", "Sancor Salud"];
+
+  useEffect(() => {
+    const fetchPerfil = async () => {
+      try {
+        const { data } = await axios.get('http://localhost:3001/api/profesional/perfil', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        const diasBackend = data.data.diasConfiguracion || [];
+        const diasTransformado = {};
+        
+        if (diasBackend.length > 0) {
+          diasBackend.forEach(d => {
+            diasTransformado[d.dia] = {
+              activo: d.habilitado,
+              inicio: d.horaInicio,
+              fin: d.horaFin
+            };
+          });
+        }
+
+        const d = data.data;
+        setPerfil(prev => ({
+          ...prev,
+          ...d,
+          descripcion:            d.descripcion            ?? '',
+          matricula:              d.matricula              ?? '',
+          direccion:              d.direccion              ?? '',
+          telefono:               d.telefono               ?? '',
+          precioConsulta:         d.precioConsulta         ?? '',
+          slug:                   d.slug                   ?? '',
+          obrasSociales:          Array.isArray(d.obrasSociales) ? d.obrasSociales : [],
+          aceptaObrasSociales:    d.aceptaObrasSociales    ?? false,
+          duracionTurno:          d.duracionTurno          ?? 30,
+          modalidad:              d.modalidad              ?? 'Presencial',
+          fotoPerfil:             d.fotoPerfil             ?? null,
+          confirmacionAutomatica: d.confirmacionAutomatica ?? false,
+          dias: { ...prev.dias, ...diasTransformado }
+        }));
+      } catch (error) {
+        console.error("Error al cargar perfil:", error);
+        if (error.response?.status === 401) logout();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (token) fetchPerfil();
+  }, [token, logout]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMensajeGuardado(null);
+    try {
+      const { dias, ...restoPerfil } = perfil;
+      
+      const diasConfiguracion = Object.keys(dias).map(diaKey => ({
+        dia: diaKey,
+        habilitado: dias[diaKey].activo,
+        horaInicio: dias[diaKey].inicio,
+        horaFin: dias[diaKey].fin
+      }));
+
+      const payload = { ...restoPerfil, diasConfiguracion };
+
+      await axios.put('http://localhost:3001/api/profesional/perfil', payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMensajeGuardado('ok');
+      setTimeout(() => setMensajeGuardado(null), 3000);
+    } catch (error) {
+      console.error("Error al guardar:", error);
+      setMensajeGuardado('error');
+      setTimeout(() => setMensajeGuardado(null), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const toggleObraSocial = (os) => {
     setPerfil(prev => ({
@@ -67,14 +167,41 @@ const PerfilPublico = () => {
   const especialidadDisplay = perfil.especialidad === 'otra' ? perfil.especialidadOtra : perfil.especialidad;
   const initials = [perfil.nombre, perfil.apellido].filter(Boolean).map(s => s[0].toUpperCase()).join('') || '?';
 
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center text-gray-500">
+      Cargando perfil...
+    </div>
+  );
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <main className="flex flex-1 overflow-hidden">
 
         {/* COLUMNA IZQUIERDA: EDITOR */}
         <section className="w-1/2 p-8 overflow-y-auto border-r border-gray-200 bg-white">
-          <h1 className="text-2xl font-bold mb-6 text-gray-800">Editar Perfil Público</h1>
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold text-gray-800">Editar Perfil Público</h1>
+            <button 
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50">
+              <Save size={18} />
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </div>
 
+          {mensajeGuardado === 'ok' && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center gap-2">
+              <CheckCircle size={16} /> Perfil actualizado correctamente
+            </div>
+          )}
+          {mensajeGuardado === 'error' && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm flex items-center gap-2">
+              <XCircle size={16} /> Error al guardar los cambios. Intentá de nuevo.
+            </div>
+          )}
+
+          {/* IDENTIDAD */}
           <div className="space-y-5 mb-10">
             <h2 className="text-lg font-semibold text-blue-600 border-b pb-2">Identidad</h2>
 
@@ -109,7 +236,7 @@ const PerfilPublico = () => {
               {perfil.especialidad === 'otra' && (
                 <input type="text" name="especialidadOtra" placeholder="Escribe tu especialidad"
                   value={perfil.especialidadOtra} onChange={handleChange}
-                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none animate-fadeIn" />
+                  className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
               )}
             </div>
 
@@ -126,6 +253,7 @@ const PerfilPublico = () => {
             </div>
           </div>
 
+          {/* CONTACTO Y MODALIDAD */}
           <div className="space-y-4 mb-10">
             <h2 className="text-lg font-semibold text-blue-600 border-b pb-2">Contacto y Modalidad</h2>
             <div className="flex gap-4 flex-wrap">
@@ -141,7 +269,7 @@ const PerfilPublico = () => {
                 value={perfil.direccion} onChange={handleChange}
                 className="w-full p-2 border rounded-md outline-none" />
             )}
-            {/* Obras Sociales toggle */}
+
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <input type="checkbox" name="aceptaObrasSociales" checked={perfil.aceptaObrasSociales} onChange={handleChange} id="os" />
@@ -149,7 +277,7 @@ const PerfilPublico = () => {
               </div>
 
               {perfil.aceptaObrasSociales && (
-                <div className="space-y-3 animate-fadeIn pl-1">
+                <div className="space-y-3 pl-1">
                   <p className="text-xs text-gray-500">Seleccioná las que aceptás:</p>
                   <div className="flex flex-wrap gap-2">
                     {OBRAS_COMUNES.map(os => {
@@ -168,14 +296,11 @@ const PerfilPublico = () => {
                   </div>
 
                   <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Otra obra social..."
+                    <input type="text" placeholder="Otra obra social..."
                       value={obrasSocialesInput}
                       onChange={e => setObrasSocialesInput(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && agregarObraPersonalizada()}
-                      className="flex-1 p-2 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+                      className="flex-1 p-2 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                     <button type="button" onClick={agregarObraPersonalizada}
                       className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors">
                       + Agregar
@@ -200,8 +325,81 @@ const PerfilPublico = () => {
                 </div>
               )}
             </div>
+
+            {/* ── Confirmación automática ── */}
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 mt-2">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Confirmación automática</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {perfil.confirmacionAutomatica
+                    ? "Los turnos se confirman solos al reservar."
+                    : "Tenés que aprobar cada turno manualmente."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPerfil(prev => ({ ...prev, confirmacionAutomatica: !prev.confirmacionAutomatica }))}
+              >
+                {perfil.confirmacionAutomatica
+                  ? <ToggleRight size={28} className="text-emerald-500" />
+                  : <ToggleLeft size={28} className="text-slate-300" />
+                }
+              </button>
+            </div>
           </div>
 
+          {/* HORARIOS */}
+          <div className="space-y-4 mb-10">
+            <h2 className="text-lg font-semibold text-blue-600 border-b pb-2">Horarios de Atención</h2>
+            
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">Duración del turno</p>
+              <div className="flex gap-2 flex-wrap">
+                {[15, 20, 30, 45, 60].map(d => (
+                  <button key={d} 
+                    onClick={() => setPerfil(prev => ({ ...prev, duracionTurno: d }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all
+                      ${parseInt(perfil.duracionTurno) === d ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>
+                    {d} min
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {DIAS_SEMANA.map(dia => {
+                const d = perfil.dias?.[dia] || { activo: false, inicio: "09:00", fin: "17:00" };
+                return (
+                  <div key={dia} className={`rounded-xl border p-3 transition-all ${d.activo ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-60"}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-slate-700 capitalize">{dia}</span>
+                      <button onClick={() => setPerfil(prev => ({
+                        ...prev, dias: { ...prev.dias, [dia]: { ...d, activo: !d.activo } }
+                      }))}>
+                        {d.activo
+                          ? <ToggleRight size={22} className="text-emerald-500" />
+                          : <ToggleLeft size={22} className="text-slate-300" />
+                        }
+                      </button>
+                    </div>
+                    {d.activo && (
+                      <div className="flex items-center gap-2">
+                        <input type="time" value={d.inicio}
+                          onChange={e => setPerfil(prev => ({ ...prev, dias: { ...prev.dias, [dia]: { ...d, inicio: e.target.value } } }))}
+                          className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400" />
+                        <span className="text-xs text-slate-400">—</span>
+                        <input type="time" value={d.fin}
+                          onChange={e => setPerfil(prev => ({ ...prev, dias: { ...prev.dias, [dia]: { ...d, fin: e.target.value } } }))}
+                          className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-emerald-400" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* URL PÚBLICA */}
           <div className="space-y-4 mb-10">
             <h2 className="text-lg font-semibold text-blue-600 border-b pb-2">URL Pública</h2>
             <div className="relative flex items-center">
@@ -215,27 +413,23 @@ const PerfilPublico = () => {
           </div>
         </section>
 
-        {/* COLUMNA DERECHA: PREVIEW TELÉFONO */}
+        {/* COLUMNA DERECHA: PREVIEW */}
         <section className="w-1/2 bg-gradient-to-br from-slate-200 to-gray-300 p-10 flex justify-center items-start pt-12 overflow-y-auto">
           <div className="relative" style={{ filter: 'drop-shadow(0 28px 50px rgba(0,0,0,0.32))' }}>
 
-            {/* Botones laterales */}
             <div className="absolute -left-[5px] top-[96px]  w-[5px] h-7 bg-gray-600 rounded-l-md" />
             <div className="absolute -left-[5px] top-[134px] w-[5px] h-7 bg-gray-600 rounded-l-md" />
             <div className="absolute -right-[5px] top-[116px] w-[5px] h-10 bg-gray-600 rounded-r-md" />
 
-            {/* Cuerpo del teléfono */}
             <div className="relative bg-gray-900 overflow-hidden"
               style={{ width: 290, height: 600, borderRadius: 46, border: '2px solid #3a3a3a' }}>
 
               <div className="absolute inset-0 pointer-events-none z-30 rounded-[46px]"
                 style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, transparent 50%)' }} />
 
-              {/* PANTALLA */}
               <div className="absolute bg-white flex flex-col overflow-hidden"
                 style={{ top: 6, left: 6, right: 6, bottom: 6, borderRadius: 40 }}>
 
-                {/* Status bar */}
                 <div className="relative flex items-center justify-between px-4 pt-2 pb-1 bg-white shrink-0 z-10">
                   <span className="text-[9px] font-bold text-gray-800">9:41</span>
                   <div className="absolute left-1/2 -translate-x-1/2 top-1.5 w-16 h-4 bg-black rounded-full flex items-center justify-center gap-1">
@@ -249,7 +443,6 @@ const PerfilPublico = () => {
                   </div>
                 </div>
 
-                {/* Mini header (replica landing) */}
                 <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-100 bg-white/90 shrink-0">
                   <div className="flex items-center gap-1.5">
                     <div className="w-4 h-4 rounded bg-blue-600 flex items-center justify-center">
@@ -262,10 +455,7 @@ const PerfilPublico = () => {
                   </div>
                 </div>
 
-                {/* Contenido scrolleable — replica secciones de LandingProfesionalPage */}
                 <div className="flex-1 overflow-y-auto phone-scroll bg-gray-50">
-
-                  {/* Hero card */}
                   <div className="bg-white mx-2 mt-2 rounded-xl border border-gray-100 p-3 shadow-sm flex gap-2.5 items-start">
                     <div className="relative shrink-0">
                       <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center text-blue-600 font-bold text-base border-2 border-white shadow overflow-hidden">
@@ -298,7 +488,6 @@ const PerfilPublico = () => {
                     </div>
                   </div>
 
-                  {/* Info badges */}
                   <div className="grid grid-cols-3 gap-1.5 mx-2 mt-1.5">
                     <div className="bg-white rounded-lg border border-gray-100 p-2 shadow-sm">
                       <div className="flex items-center gap-0.5 mb-1">
@@ -341,12 +530,11 @@ const PerfilPublico = () => {
                     </div>
                   </div>
 
-                  {/* Días disponibles */}
                   <div className="bg-white mx-2 mt-1.5 rounded-xl border border-gray-100 p-2.5 shadow-sm">
                     <p className="text-[8px] font-bold text-gray-900 mb-0.5">Días disponibles</p>
                     <p className="text-[6.5px] text-gray-400 mb-2">Seleccioná un día para ver los horarios.</p>
                     <div className="flex flex-wrap gap-1">
-                      {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'].map((dia, i) => (
+                      {DIAS_SEMANA.filter(d => perfil.dias?.[d]?.activo).map((dia, i) => (
                         <span key={dia}
                           className={`px-1.5 py-0.5 rounded text-[6.5px] font-medium border ${i === 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>
                           {dia.slice(0, 3)}
@@ -355,7 +543,6 @@ const PerfilPublico = () => {
                     </div>
                   </div>
 
-                  {/* CTA */}
                   <div className="mx-2 mt-1.5 mb-3 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 p-3 text-center shadow">
                     <p className="text-[9px] font-bold text-white mb-0.5">¿Listo para reservar?</p>
                     <p className="text-[6.5px] text-blue-100 mb-2">Confirmá tu turno en menos de 2 minutos.</p>
@@ -372,7 +559,6 @@ const PerfilPublico = () => {
                 </div>
               </div>
 
-              {/* Home indicator */}
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-14 h-1 bg-white/30 rounded-full z-20" />
             </div>
           </div>
@@ -383,8 +569,8 @@ const PerfilPublico = () => {
         <button className="flex items-center gap-2 text-blue-600 font-medium hover:underline text-sm">
           Ver mi página pública <ExternalLink size={16} />
         </button>
-        <button className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-blue-700 transition-colors">
-          <Save size={18} /> Guardar cambios
+        <button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-blue-700 transition-colors disabled:opacity-50">
+          <Save size={18} /> {saving ? "Guardando..." : "Guardar cambios"}
         </button>
       </footer>
 

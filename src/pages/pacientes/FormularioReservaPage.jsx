@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft,
@@ -10,23 +11,13 @@ import {
   CreditCard,
   FileText,
   Shield,
-  Bell,
-  ArrowRight,
+  Loader2,
   AlertCircle,
+  ArrowRight,
   CheckCircle2,
+  Bell,
 } from "lucide-react";
-
-// ── Mock config profesional ───────────────────────────────────────────────────
-const profesionalMock = {
-  nombre: "Martín García",
-  especialidad: "Médico Clínico",
-  duracionTurno: 30,
-  aceptaObrasSociales: true,
-  obrasSociales: ["OSDE", "Swiss Medical", "Galeno", "PAMI", "Medifé"],
-  pagoObligatorio: false,
-  montoPago: 8000,
-  confirmacionAutomatica: true,
-};
+import axios from "axios";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatFecha(fechaStr) {
@@ -39,23 +30,35 @@ function formatFecha(fechaStr) {
   });
 }
 
-function validar(form) {
+function validar(form, profesional) {
   const errores = {};
+
   if (!form.nombre || form.nombre.trim().length < 2)
     errores.nombre = "Ingresá tu nombre (mín. 2 caracteres)";
+
   if (!form.apellido || form.apellido.trim().length < 2)
     errores.apellido = "Ingresá tu apellido (mín. 2 caracteres)";
-if (!form.telefono || !/^\+?549?\d{10}$/.test(form.telefono.replace(/\s/g, "")))
+
+  if (!form.telefono || !/^\+?549?\d{10}$/.test(form.telefono.replace(/\s/g, "")))
     errores.telefono = "Formato válido: +54 9 11 12345678";
+
   if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
     errores.email = "Ingresá un email válido";
-  if (form.tieneObraSocial && !form.obraSocial)
-    errores.obraSocial = "Seleccioná tu obra social";
+
+  // 🔥 SOLO validar si tiene obra social
+  if (profesional?.aceptaObrasSociales && form.tieneObraSocial) {
+    if (!form.obraSocial)
+      errores.obraSocial = "Seleccioná tu obra social";
+
+    if (!form.numeroAfiliado || form.numeroAfiliado.trim().length < 3)
+      errores.numeroAfiliado = "Ingresá tu número de afiliado";
+  }
+
   if (form.motivoConsulta && form.motivoConsulta.length > 300)
     errores.motivoConsulta = "Máximo 300 caracteres";
+
   return errores;
 }
-
 // ── Input base ────────────────────────────────────────────────────────────────
 function Field({ label, required, error, icon: Icon, children, hint }) {
   return (
@@ -101,6 +104,30 @@ export default function FormularioReservaPage() {
   const fecha = searchParams.get("fecha");
   const hora = searchParams.get("hora");
 
+  const [profesional, setProfesional] = useState(null);
+  const [loadingProfesional, setLoadingProfesional] = useState(true);
+  const [errorLoad, setErrorLoad] = useState(null);
+
+  useEffect(() => {
+    if (!slug) return;
+    const fetchProfesional = async () => {
+      try {
+        const { data } = await axios.get(`http://localhost:3001/api/publico/${slug}`);
+        if (data.ok) {
+          setProfesional(data.data);
+        } else {
+          setErrorLoad("No se pudo cargar la información del profesional.");
+        }
+      } catch (err) {
+        console.error("Error al cargar profesional:", err);
+        setErrorLoad("No se pudo cargar la información del profesional.");
+      } finally {
+        setLoadingProfesional(false);
+      }
+    };
+    fetchProfesional();
+  }, [slug]);
+
   const [form, setForm] = useState({
     nombre: "",
     apellido: "",
@@ -117,6 +144,7 @@ export default function FormularioReservaPage() {
   const [errores, setErrores] = useState({});
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
+  const [errorSubmit, setErrorSubmit] = useState(null);
 
   function set(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -124,28 +152,83 @@ export default function FormularioReservaPage() {
   }
 
   async function handleSubmit() {
-    const errs = validar(form);
+    setErrorSubmit(null);
+    const errs = validar(form, profesional);
     if (Object.keys(errs).length > 0) {
       setErrores(errs);
-      // scroll al primer error
       const firstKey = Object.keys(errs)[0];
       document.getElementById(firstKey)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
     setEnviando(true);
-    // Simular llamada API
-    await new Promise((r) => setTimeout(r, 1200));
-    setEnviando(false);
-    setEnviado(true);
 
-    await new Promise((r) => setTimeout(r, 600));
+    try {
+const payload = {
+  fecha,
+  horaInicio: hora,
+  modalidad: ({ 'Presencial': 'presencial', 'Virtual': 'virtual', 'Presencial y Virtual': 'ambas' })[profesional?.modalidad] || 'presencial',
+  motivoConsulta: form.motivoConsulta,
+paciente: {
+  nombre: form.nombre.trim(),
+  apellido: form.apellido.trim(),
+  email: form.email.trim(),
+  telefono: form.telefono.trim(),
+  dni: form.dni?.trim() || "",
+  obraSocial: String(form.tieneObraSocial ? form.obraSocial || "" : ""),
+  numeroAfiliado: String(form.tieneObraSocial ? form.numeroAfiliado || "" : ""),
+}
+};
 
-    if (profesionalMock.confirmacionAutomatica) {
-      navigate(`/${slug}/reservar/confirmado?fecha=${fecha}&hora=${hora}`);
-    } else {
-      navigate(`/${slug}/reservar/pendiente?fecha=${fecha}&hora=${hora}`);
+      const response = await axios.post(`http://localhost:3001/api/publico/${slug}/reservar`, payload);
+
+      if (response.data.ok) {
+        const turnoCreado = response.data.data;
+        setEnviado(true);
+
+        const destino = (turnoCreado.turno?.estado === 'confirmado' || turnoCreado.estado === 'confirmado')
+  ? `/${slug}/reservar/confirmado`
+  : `/${slug}/reservar/pendiente`;
+
+setTimeout(() => {
+  navigate(`${destino}?fecha=${fecha}&hora=${hora}`, {
+    state: { 
+      turno: turnoCreado, 
+      paciente: form,
+      profesional
     }
+  });
+}, 800);
+      }
+
+    } catch (err) {
+      console.error("Error al reservar:", err);
+      const msg = err.response?.data?.message || "Ocurrió un error al procesar tu reserva. Intentalo nuevamente.";
+      setErrorSubmit(msg);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  // Loading
+  if (loadingProfesional) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (errorLoad || !profesional) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white p-6 rounded-xl shadow-sm text-center max-w-sm">
+          <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+          <p className="text-gray-900 font-medium mb-4">{errorLoad || "Profesional no encontrado"}</p>
+          <button onClick={() => navigate(-1)} className="text-blue-600 text-sm hover:underline">Volver</button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -180,11 +263,11 @@ export default function FormularioReservaPage() {
           </p>
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
-              MG
+              {profesional.nombre?.[0]}{profesional.apellido?.[0]}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-white">Dr. {profesionalMock.nombre}</p>
-              <p className="text-blue-200 text-xs">{profesionalMock.especialidad}</p>
+              <p className="font-bold text-white">Dr. {profesional.nombre} {profesional.apellido}</p>
+              <p className="text-blue-200 text-xs">{profesional.especialidad}</p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
@@ -194,7 +277,7 @@ export default function FormularioReservaPage() {
             </div>
             <div className="flex items-center gap-1.5 bg-blue-500/50 rounded-lg px-3 py-1.5">
               <Clock size={13} className="text-blue-200" />
-              <span className="text-xs font-medium">{hora} · {profesionalMock.duracionTurno} min</span>
+              <span className="text-xs font-medium">{hora} · {profesional.duracionTurno} min</span>
             </div>
           </div>
         </div>
@@ -260,7 +343,7 @@ export default function FormularioReservaPage() {
           <Field label="DNI" error={errores.dni} icon={CreditCard} hint="Opcional">
             <input
               id="dni"
-              type="number"
+              type="text"
               value={form.dni}
               onChange={(e) => set("dni", e.target.value)}
               placeholder="12345678"
@@ -270,14 +353,13 @@ export default function FormularioReservaPage() {
         </section>
 
         {/* ── Obra social ── */}
-        {profesionalMock.aceptaObrasSociales && (
+        {profesional.aceptaObrasSociales && (
           <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
               <Shield size={15} className="text-blue-500" />
               Obra social
             </h2>
 
-            {/* Toggle */}
             <button
               onClick={() => {
                 set("tieneObraSocial", !form.tieneObraSocial);
@@ -314,19 +396,22 @@ export default function FormularioReservaPage() {
                     className={`${inputClass(false, errores.obraSocial)} cursor-pointer`}
                   >
                     <option value="">Seleccioná tu obra social</option>
-                    {profesionalMock.obrasSociales.map((os) => (
+                    {profesional.obrasSociales?.map((os) => (
                       <option key={os} value={os}>{os}</option>
                     ))}
                   </select>
                 </Field>
 
-                <Field label="Número de afiliado" hint="Opcional">
+                <Field label="Número de afiliado" 
+                 required 
+                 error={errores.numeroAfiliado}
+>
                   <input
                     type="text"
                     value={form.numeroAfiliado}
                     onChange={(e) => set("numeroAfiliado", e.target.value)}
                     placeholder="Ej: 123456789"
-                    className={inputClass(false, false)}
+                    className={inputClass(false, errores.numeroAfiliado)}
                   />
                 </Field>
               </div>
@@ -363,7 +448,7 @@ export default function FormularioReservaPage() {
         </section>
 
         {/* ── Pago anticipado ── */}
-        {profesionalMock.pagoObligatorio && (
+        {profesional.pagoObligatorio && (
           <section className="bg-white rounded-2xl border border-amber-200 p-6 shadow-sm space-y-4">
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
@@ -380,7 +465,7 @@ export default function FormularioReservaPage() {
             <div className="bg-amber-50 rounded-xl px-4 py-3 flex items-center justify-between">
               <span className="text-sm text-amber-700 font-medium">Monto a abonar</span>
               <span className="text-lg font-bold text-amber-700">
-                ${profesionalMock.montoPago.toLocaleString("es-AR")}
+                ${profesional.montoPorTurno?.toLocaleString("es-AR")}
               </span>
             </div>
 
@@ -415,6 +500,15 @@ export default function FormularioReservaPage() {
             </p>
           </div>
         </button>
+
+        {/* ── Error submit ── */}
+        {errorSubmit && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-2">
+            <AlertCircle size={14} className="text-red-500 shrink-0" />
+            <p className="text-xs text-red-600">{errorSubmit}</p>
+          </div>
+        )}
+
       </main>
 
       {/* ── Footer fijo ── */}

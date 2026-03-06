@@ -1,9 +1,16 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import useAuthStore from '../../store/useAuthStore'
 
 export default function Sidebar() {
   const location = useLocation()
-  
-  // Función auxiliar para clases de items activos
+  const navigate = useNavigate()
+  const { logout } = useAuthStore()
+
+  function handleLogout() {
+    logout()
+    navigate('/profesional/login')
+  }
+
   const getItemClass = (path) => {
     const isActive = location.pathname === path
     return isActive 
@@ -13,14 +20,12 @@ export default function Sidebar() {
 
   return (
     <aside className="w-[240px] flex flex-col h-full bg-slate-950 border-r border-slate-800">
-      {/* Header Sidebar */}
       <div className="h-14 flex items-center px-6 border-b border-slate-800">
         <span className="text-xl font-display font-bold text-white tracking-tight">
           Turno<span className="text-profesional">Salud</span>
         </span>
       </div>
 
-      {/* Navegación Principal */}
       <nav className="flex-1 py-6 space-y-1">
         <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
           Principal
@@ -52,9 +57,11 @@ export default function Sidebar() {
         </Link>
       </nav>
 
-      {/* Footer Sidebar */}
       <div className="p-4 border-t border-slate-800">
-        <button className="flex items-center gap-2 text-sm text-slate-400 hover:text-white w-full">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-sm text-slate-400 hover:text-white w-full transition-colors"
+        >
           <span>🚪</span> Cerrar sesión
         </button>
       </div>

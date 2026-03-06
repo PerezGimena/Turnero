@@ -12,6 +12,7 @@ import {
   TurnoConfirmadoPage,
   GestionTurnoPage,
   LoginProfesionalPage,
+  RegistroPage,
   DashboardProfesionalPage,
   AgendaProfesionalPage,
   TurnosPendientesPage,
@@ -37,6 +38,10 @@ const router = createBrowserRouter([
   {
     path: '/profesional/login',
     element: <LoginProfesionalPage />
+  },
+  {
+    path: '/profesional/registro',
+    element: <RegistroPage />
   },
 
   // Módulo Profesional (Privado - con Sidebar)
