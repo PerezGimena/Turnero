@@ -12,7 +12,6 @@ const {
 const {
   calcularSlotsDisponibles,
 } = require("../services/disponibilidad.service");
-const recordatorioService = require("../services/recordatorio.service");
 
 // --- TURNOS ---
 
@@ -154,6 +153,102 @@ const rechazarTurno = async (req, res, next) => {
   }
 };
 
+const marcarAusente = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const profesionalId = req.user.sub;
+
+    const turno = await Turno.findOne({ where: { id, profesionalId } });
+    if (!turno)
+      return res.status(404).json({ ok: false, error: "TURNO_NO_ENCONTRADO" });
+
+    // Se puede marcar ausente si estaba confirmado
+    if (turno.estado !== "confirmado") {
+      return res.status(400).json({
+         ok: false, 
+         error: "ESTADO_INVALIDO", 
+         message: "Solo se puede marcar ausente un turno confirmado" 
+      });
+    }
+
+    turno.estado = "ausente";
+    await turno.save();
+
+    res.json({ ok: true, data: turno, message: "Turno marcado como ausente" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const cancelarTurno = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const profesionalId = req.user.sub;
+    const { motivo } = req.body;
+
+    const turno = await Turno.findOne({ where: { id, profesionalId } });
+    if (!turno)
+      return res.status(404).json({ ok: false, error: "TURNO_NO_ENCONTRADO" });
+
+    turno.estado = "cancelado";
+    turno.motivoCancelacion = motivo;
+    await turno.save();
+
+    res.json({ ok: true, data: turno, message: "Turno cancelado" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const reprogramarTurno = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const profesionalId = req.user.sub;
+    const { fecha, horaInicio, horaFin } = req.body;
+
+    const turno = await Turno.findOne({ where: { id, profesionalId } });
+    if (!turno)
+      return res.status(404).json({ ok: false, error: "TURNO_NO_ENCONTRADO" });
+
+    // Verificar disponibilidad del nuevo slot
+    const colision = await Turno.findOne({
+      where: {
+        profesionalId,
+        fecha,
+        estado: { [Op.in]: ["pendiente", "confirmado"] },
+        id: { [Op.ne]: id }, // Excluir el mismo turno
+        [Op.or]: [
+            // Lógica de superposición de intervalos
+            {
+                horaInicio: { [Op.lt]: horaFin },
+                horaFin: { [Op.gt]: horaInicio }
+            }
+        ]
+      }
+    });
+
+    if (colision) {
+      return res.status(400).json({
+        ok: false,
+        error: "SLOT_OCUPADO",
+        message: "El horario seleccionado ya está ocupado por otro turno."
+      });
+    }
+
+    turno.fecha = fecha;
+    turno.horaInicio = horaInicio;
+    turno.horaFin = horaFin;
+    // Forzamos confirmación al reprogramar
+    turno.estado = "confirmado"; 
+    
+    await turno.save();
+
+    res.json({ ok: true, data: turno, message: "Turno reprogramado exitosamente" });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // --- PACIENTES ---
 
 const getPacientes = async (req, res, next) => {
@@ -222,6 +317,46 @@ const getPacienteById = async (req, res, next) => {
         .json({ ok: false, error: "PACIENTE_NO_ENCONTRADO" });
 
     res.json({ ok: true, data: paciente });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const crearPacienteManual = async (req, res, next) => {
+  try {
+    const profesionalId = req.user.sub;
+    const { nombre, apellido, email, telefono, dni, obraSocial, numeroAfiliado } = req.body;
+
+    // Verificar existencia por email y profesional
+    const existente = await Paciente.findOne({
+      where: { profesionalId, email }
+    });
+
+    if (existente) {
+      return res.status(400).json({
+        ok: false,
+        error: "PACIENTE_EXISTENTE",
+        message: "Ya existe un paciente con ese email para este profesional."
+      });
+    }
+
+    const nuevoPaciente = await Paciente.create({
+      profesionalId,
+      nombre,
+      apellido,
+      email,
+      telefono,
+      dni,
+      obraSocial,
+      numeroAfiliado,
+      tieneObraSocial: !!obraSocial // Si viene obra social, true
+    });
+
+    res.status(201).json({
+      ok: true,
+      data: nuevoPaciente,
+      message: "Paciente creado manualmente"
+    });
   } catch (error) {
     next(error);
   }
@@ -342,50 +477,84 @@ const updatePerfil = async (req, res, next) => {
 const getMetricasDashboard = async (req, res, next) => {
   try {
     const profesionalId = req.user.sub;
-    const hoy = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const hoy = now.toISOString().split("T")[0]; // YYYY-MM-DD
 
+    // Rango del mes actual
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    
+    // Rango de hoy para timestamps (Pagos y Pacientes usan createdAt)
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    // 1. Turnos Hoy
     const turnosHoy = await Turno.count({
       where: { profesionalId, fecha: hoy, estado: { [Op.not]: "cancelado" } },
     });
 
+    // 2. Pendientes Totales
     const pendientes = await Turno.count({
       where: { profesionalId, estado: "pendiente" },
     });
 
-    res.json({ ok: true, data: { turnosHoy, pendientes } });
-  } catch (error) {
-    next(error);
-  }
-};
+    // 3. Turnos del Mes (excluyendo cancelados)
+    // Turno.fecha es string YYYY-MM-DD o DATEONLY
+    const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
+    const endOfMonthStr = endOfMonth.toISOString().split('T')[0];
 
-const enviarRecordatorioPrueba = async (req, res, next) => {
-  try {
-    const profesionalId = req.user.sub;
-    const { emailDestino } = req.body;
+    const turnosMes = await Turno.count({
+      where: {
+        profesionalId,
+        fecha: {
+             [Op.between]: [startOfMonthStr, endOfMonthStr]
+        },
+        estado: { [Op.not]: "cancelado" }
+      }
+    });
 
-    const profesional = await Profesional.findByPk(profesionalId);
+    // 4. Pacientes Nuevos este Mes
+    const pacientesNuevosMes = await Paciente.count({
+      where: {
+        profesionalId,
+        createdAt: {
+          [Op.between]: [startOfMonth, endOfMonth]
+        }
+      }
+    });
 
-    const mockTurno = {
-      fecha: "2024-12-01",
-      horaInicio: "10:00",
-      modalidad: "presencial",
-      referencia: "PRUEBA-123",
-    };
+    // 5. Ingresos este Mes
+    const ingresosMes = await Pago.sum('monto', {
+      where: {
+        profesionalId,
+        estado: 'aprobado',
+        createdAt: {
+          [Op.between]: [startOfMonth, endOfMonth]
+        }
+      }
+    });
 
-    const mockPaciente = {
-      nombre: "Paciente de Prueba",
-      email: emailDestino || profesional.email,
-    };
+    // 6. Ingresos Hoy
+    const ingresosHoy = await Pago.sum('monto', {
+        where: {
+          profesionalId,
+          estado: 'aprobado',
+          createdAt: {
+            [Op.between]: [startOfToday, endOfToday]
+          }
+        }
+    });
 
-    await recordatorioService.enviarConfirmacionReserva(
-      mockTurno,
-      mockPaciente,
-      profesional,
-    );
-
-    res.json({
-      ok: true,
-      message: `Email de prueba enviado a ${mockPaciente.email}`,
+    res.json({ 
+        ok: true, 
+        data: { 
+            turnosHoy, 
+            pendientes,
+            turnosMes,
+            pacientesNuevosMes,
+            ingresosMes: ingresosMes || 0,
+            ingresosHoy: ingresosHoy || 0
+        } 
     });
   } catch (error) {
     next(error);
@@ -398,10 +567,13 @@ module.exports = {
   crearTurnoManual,
   confirmarTurno,
   rechazarTurno,
+  marcarAusente,
+  cancelarTurno,
+  reprogramarTurno,
   getPacientes,
   getPacienteById,
+  crearPacienteManual,
   getPerfil,
   updatePerfil,
   getMetricasDashboard,
-  enviarRecordatorioPrueba,
 };

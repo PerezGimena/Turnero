@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
+const { rateLimiterGlobal } = require('./middlewares/rateLimiter.middleware');
 const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler.middleware');
 require('dotenv').config();
@@ -21,14 +21,8 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev')); // Logger solo en dev
 }
 
-// Rate Limiter Global (Básico)
-const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minuto
-  limit: 200, // Limit each IP to 200 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use(limiter);
+// Rate Limiter Global
+app.use(rateLimiterGlobal);
 
 // Rutas
 app.use('/api', routes);

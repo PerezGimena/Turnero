@@ -4,10 +4,12 @@ const router = express.Router();
 const authRoutes = require('./auth.routes');
 const publicoRoutes = require('./publico.routes');
 const profesionalRoutes = require('./profesional.routes');
+const pagoRoutes = require('./pago.routes');
 const adminRoutes = require('./admin.routes');
 
 router.use('/auth', authRoutes);
 router.use('/publico', publicoRoutes);
+router.use('/profesional/pagos', pagoRoutes);
 router.use('/profesional', profesionalRoutes);
 router.use('/admin', adminRoutes);
 
