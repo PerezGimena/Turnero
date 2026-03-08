@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../config/jwt');
-const { Profesional, Admin, ConfiguracionDia } = require('../models');
+const { Profesional, Admin, ConfiguracionDia, ConfiguracionRecordatorios } = require('../models');
 
 // Registro Profesional
 const registroProfesional = async (req, res) => {
@@ -46,12 +46,12 @@ const registroProfesional = async (req, res) => {
       passwordHash,
       especialidad: especialidad || 'General',
       slug,
-      modalidad: 'Presencial', // Default
+      modalidad: 'presencial', // Default - debe ser lowercase para el ENUM
       duracionTurno: 30
     });
 
-    // Create default config for 7 days
-    const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    // Crear config de días por defecto (nombres en minúscula según ENUM de BD)
+    const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
     const configPromises = dias.map(dia => ConfiguracionDia.create({
       profesionalId: nuevoProfesional.id,
       dia,
@@ -60,6 +60,15 @@ const registroProfesional = async (req, res) => {
       habilitado: false
     }));
     await Promise.all(configPromises);
+
+    // Crear configuración de recordatorios por defecto
+    await ConfiguracionRecordatorios.create({
+      profesionalId: nuevoProfesional.id,
+      emailHabilitado: true,
+      recordatorio1Habilitado: true,
+      recordatorio1HorasAntes: 24,
+      mensajeEmail: 'Hola {{nombre}}, te recordamos tu turno el día {{fecha}} a las {{hora}} hs. ¡Te esperamos!'
+    });
 
     // Generate JWT
     const payload = {
@@ -132,6 +141,7 @@ const loginProfesional = async (req, res) => {
     const profesionalData = profesional.toJSON();
     delete profesionalData.passwordHash;
     delete profesionalData.pagoCredenciales;
+    profesionalData.rol = 'profesional';
 
     res.json({
       ok: true,
@@ -186,6 +196,7 @@ const loginAdmin = async (req, res) => {
 
     const adminData = admin.toJSON();
     delete adminData.passwordHash;
+    adminData.rol = 'admin';
 
     res.json({
       ok: true,
