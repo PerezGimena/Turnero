@@ -34,6 +34,7 @@ router.patch('/turnos/:id/rechazar', validate(rechazoSchema), profesionalControl
 
 // Pacientes
 router.get('/pacientes', profesionalController.getPacientes);
+router.post('/pacientes', profesionalController.crearPaciente);
 router.get('/pacientes/:id', profesionalController.getPacienteById);
 
 // Perfil
@@ -44,6 +45,11 @@ router.put('/perfil', profesionalController.updatePerfil);
 router.get('/dashboard/metricas', profesionalController.getMetricasDashboard);
 
 // Recordatorios
+router.get('/recordatorios/config', profesionalController.getConfigRecordatorios);
+router.put('/recordatorios/config', profesionalController.updateConfigRecordatorios);
 router.post('/recordatorios/prueba', profesionalController.enviarRecordatorioPrueba);
+
+// Pagos
+router.get('/pagos', profesionalController.getPagos);
 
 module.exports = router;

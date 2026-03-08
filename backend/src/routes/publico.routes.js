@@ -24,7 +24,10 @@ const reservaSchema = z.object({
 // Rutas Públicas
 router.get('/:slug', publicoController.getPerfilProfesional);
 router.get('/:slug/horarios', publicoController.getSlotsDisponibles);
-router.post('/:slug/reservar', validate(reservaSchema), publicoController.crearReserva); // Falta el validate con Zod
+router.post('/:slug/reservar', validate(reservaSchema), publicoController.crearReserva);
+router.get('/:slug/turno/:id', publicoController.getTurno);
+router.patch('/:slug/turno/:id/cancelar', publicoController.cancelarTurnoPublico);
+router.patch('/:slug/turno/:id/reprogramar', publicoController.reprogramarTurnoPublico);
 // TODO: Agregar rateLimiter agresivo definido en prompt
 
 module.exports = router;

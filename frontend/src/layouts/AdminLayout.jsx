@@ -1,19 +1,18 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, Users, BarChart2, MessageSquare, Settings, LogOut,
+  LayoutDashboard, Users, LogOut,
 } from "lucide-react";
+import useAuthStore from "../store/useAuthStore.jsx";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard",         path: "/admin/dashboard" },
   { icon: Users,           label: "Profesionales",     path: "/admin/profesionales" },
-  { icon: BarChart2,       label: "Métricas globales", path: "/admin/metricas" },
-  { icon: MessageSquare,   label: "Soporte",           path: "/admin/soporte" },
-  { icon: Settings,        label: "Configuración",     path: "/admin/configuracion" },
 ];
 
 export default function AdminLayout() {
   const navigate  = useNavigate();
   const { pathname } = useLocation();
+  const { logout, usuario } = useAuthStore();
 
   return (
     <div
@@ -67,7 +66,8 @@ export default function AdminLayout() {
               <p className="text-xs text-violet-400">admin@turnosalud.com</p>
             </div>
           </div>
-          <button className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-violet-400 hover:bg-violet-900 hover:text-white transition-all">
+          <button className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-violet-400 hover:bg-violet-900 hover:text-white transition-all"
+            onClick={() => { logout(); navigate('/admin/login'); }}>
             <LogOut size={14} /> Cerrar sesión
           </button>
         </div>

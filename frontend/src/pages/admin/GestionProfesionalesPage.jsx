@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import useAuthStore from "../../store/useAuthStore";
 import {
   Search, Plus, X, ChevronUp, ChevronDown, ChevronsUpDown,
   ChevronLeft, ChevronRight, Mail, Calendar, Shield,
@@ -7,20 +9,9 @@ import {
   LogIn, Trash2, AlertTriangle, User,
 } from "lucide-react";
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-const profesionalesMock = [
-  { id: 1, nombre: "Camila Torres", email: "camila@turnosalud.com", especialidad: "Psicología", slug: "camila-torres", plan: "Pro", estado: "Activo", turnosMes: 43, registro: "2026-02-25", vencimientoPlan: "2026-03-25", turnosTotales: 187, ausencias: 12, pagos: "$18.600", confirmacionAuto: true, pagoObligatorio: false, obrasSociales: true },
-  { id: 2, nombre: "Federico Ruiz", email: "federico@clinic.ar", especialidad: "Odontología", slug: "federico-ruiz", plan: "Básico", estado: "Activo", turnosMes: 18, registro: "2026-02-22", vencimientoPlan: "2026-03-22", turnosTotales: 45, ausencias: 3, pagos: "$0", confirmacionAuto: false, pagoObligatorio: false, obrasSociales: false },
-  { id: 3, nombre: "Luciana Páez", email: "luciana.paez@salud.com", especialidad: "Pediatría", slug: "luciana-paez", plan: "Pro", estado: "Activo", turnosMes: 67, registro: "2026-02-20", vencimientoPlan: "2026-04-20", turnosTotales: 312, ausencias: 28, pagos: "$41.000", confirmacionAuto: true, pagoObligatorio: true, obrasSociales: true },
-  { id: 4, nombre: "Andrés Molina", email: "andres.m@gmail.com", especialidad: "Cardiología", slug: "andres-molina", plan: "Básico", estado: "Inactivo", turnosMes: 0, registro: "2026-02-18", vencimientoPlan: "2026-02-18", turnosTotales: 22, ausencias: 5, pagos: "$0", confirmacionAuto: false, pagoObligatorio: false, obrasSociales: false },
-  { id: 5, nombre: "Natalia Vega", email: "natalia.v@medic.ar", especialidad: "Nutrición", slug: "natalia-vega", plan: "Pro", estado: "Activo", turnosMes: 31, registro: "2026-02-15", vencimientoPlan: "2026-05-15", turnosTotales: 98, ausencias: 4, pagos: "$12.400", confirmacionAuto: true, pagoObligatorio: false, obrasSociales: true },
-  { id: 6, nombre: "Martín García", email: "martin@turnosalud.com", especialidad: "Clínica Médica", slug: "martin-garcia", plan: "Pro", estado: "Activo", turnosMes: 55, registro: "2025-12-01", vencimientoPlan: "2026-06-01", turnosTotales: 234, ausencias: 18, pagos: "$27.500", confirmacionAuto: true, pagoObligatorio: false, obrasSociales: true },
-  { id: 7, nombre: "Sofía Ramos", email: "sofia.ramos@psico.com", especialidad: "Psiquiatría", slug: "sofia-ramos", plan: "Básico", estado: "Activo", turnosMes: 24, registro: "2026-01-10", vencimientoPlan: "2026-04-10", turnosTotales: 67, ausencias: 2, pagos: "$0", confirmacionAuto: false, pagoObligatorio: true, obrasSociales: false },
-];
-
 const POR_PAGINA = 5;
 
-function initials(n) { return n.split(" ").map(x => x[0]).slice(0, 2).join("").toUpperCase(); }
+function initials(n) { return (n || '').split(" ").map(x => x[0]).slice(0, 2).join("").toUpperCase(); }
 function formatFecha(f) {
   if (!f) return "—";
   return new Date(f + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
@@ -30,8 +21,10 @@ const inputCls = "w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm 
 
 export default function GestionProfesionalesPage() {
   const navigate = useNavigate();
+  const { token } = useAuthStore();
+  const headers = { Authorization: `Bearer ${token}` };
 
-  const [profesionales, setProfesionales] = useState(profesionalesMock);
+  const [profesionales, setProfesionales] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState("todos");
   const [pagina, setPagina] = useState(1);
@@ -42,6 +35,33 @@ export default function GestionProfesionalesPage() {
   const [modalEliminar, setModalEliminar] = useState(null);
   const [tabForm, setTabForm] = useState("datos");
   const [form, setForm] = useState({ nombre: "", apellido: "", email: "", especialidad: "", slug: "", plan: "Básico", password: "" });
+  const [guardando, setGuardando] = useState(false);
+
+  const normalizar = (p) => ({
+    ...p,
+    nombre: `${p.nombre} ${p.apellido}`,
+    _nombre: p.nombre,
+    _apellido: p.apellido,
+    plan: p.planActivo ? 'Pro' : 'Básico',
+    estado: p.planActivo ? 'Activo' : 'Inactivo',
+    registro: p.createdAt,
+    turnosMes: 0,
+    turnosTotales: 0,
+    ausencias: 0,
+    pagos: '$0',
+    confirmacionAuto: p.confirmacionAutoTurno || false,
+    pagoObligatorio: p.pagoObligatorio || false,
+    obrasSociales: false,
+    vencimientoPlan: null,
+  });
+
+  const cargarProfesionales = useCallback(() => {
+    axios.get('http://localhost:3001/api/admin/profesionales?porPagina=100', { headers })
+      .then(({ data }) => setProfesionales((data.data || []).map(normalizar)))
+      .catch(console.error);
+  }, [token]);
+
+  useEffect(() => { cargarProfesionales(); }, [cargarProfesionales]);
 
   const filtrados = useMemo(() => {
     let lista = [...profesionales];
@@ -77,22 +97,29 @@ export default function GestionProfesionalesPage() {
     setPagina(1);
   }
 
-  function toggleEstado(id) {
-    setProfesionales(ps => ps.map(p =>
-      p.id === id ? { ...p, estado: p.estado === "Activo" ? "Inactivo" : "Activo" } : p
-    ));
-    if (panelProf?.id === id) setPanelProf(p => ({ ...p, estado: p.estado === "Activo" ? "Inactivo" : "Activo" }));
+  async function toggleEstado(id) {
+    const prof = profesionales.find(p => p.id === id);
+    if (!prof) return;
+    const nuevoPlanActivo = prof.estado !== 'Activo';
+    try {
+      await axios.patch(`http://localhost:3001/api/admin/profesionales/${id}/estado`, { planActivo: nuevoPlanActivo }, { headers });
+      const cambio = { planActivo: nuevoPlanActivo, estado: nuevoPlanActivo ? 'Activo' : 'Inactivo', plan: nuevoPlanActivo ? 'Pro' : 'Básico' };
+      setProfesionales(ps => ps.map(p => p.id === id ? { ...p, ...cambio } : p));
+      if (panelProf?.id === id) setPanelProf(p => ({ ...p, ...cambio }));
+    } catch (e) { console.error(e); }
   }
 
-  function eliminar(id) {
-    setProfesionales(ps => ps.filter(p => p.id !== id));
-    setModalEliminar(null);
-    if (panelProf?.id === id) setPanelProf(null);
+  async function eliminar(id) {
+    try {
+      await axios.delete(`http://localhost:3001/api/admin/profesionales/${id}`, { headers });
+      setProfesionales(ps => ps.filter(p => p.id !== id));
+      setModalEliminar(null);
+      if (panelProf?.id === id) setPanelProf(null);
+    } catch (e) { console.error(e); }
   }
 
   function abrirEditar(prof) {
-    const [nombre, ...apellidoArr] = prof.nombre.split(" ");
-    setForm({ nombre, apellido: apellidoArr.join(" "), email: prof.email, especialidad: prof.especialidad, slug: prof.slug, plan: prof.plan, password: "" });
+    setForm({ nombre: prof._nombre || '', apellido: prof._apellido || '', email: prof.email, especialidad: prof.especialidad, slug: prof.slug, plan: prof.plan, password: "" });
     setTabForm("datos");
     setModalForm(prof);
   }
@@ -101,6 +128,35 @@ export default function GestionProfesionalesPage() {
     setForm({ nombre: "", apellido: "", email: "", especialidad: "", slug: "", plan: "Básico", password: "" });
     setTabForm("datos");
     setModalForm("nuevo");
+  }
+
+  async function guardarForm() {
+    if (!form.nombre || !form.apellido || !form.email || !form.slug) {
+      alert('Completá todos los campos obligatorios');
+      return;
+    }
+    setGuardando(true);
+    try {
+      if (modalForm === 'nuevo') {
+        if (!form.password) { alert('La contraseña es requerida para un nuevo profesional'); setGuardando(false); return; }
+        const { data } = await axios.post('http://localhost:3001/api/admin/profesionales', {
+          nombre: form.nombre, apellido: form.apellido, email: form.email,
+          password: form.password, slug: form.slug, especialidad: form.especialidad
+        }, { headers });
+        if (data.ok) { cargarProfesionales(); setModalForm(null); }
+        else alert(data.message || 'Error al crear');
+      } else {
+        const payload = { nombre: form.nombre, apellido: form.apellido, email: form.email, slug: form.slug, especialidad: form.especialidad };
+        if (form.password) payload.password = form.password;
+        const { data } = await axios.put(`http://localhost:3001/api/admin/profesionales/${modalForm.id}`, payload, { headers });
+        if (data.ok) { cargarProfesionales(); setModalForm(null); }
+        else alert(data.message || 'Error al actualizar');
+      }
+    } catch (e) {
+      alert(e.response?.data?.message || 'Error al guardar');
+    } finally {
+      setGuardando(false);
+    }
   }
 
   function IconOrden({ col }) {
@@ -477,9 +533,9 @@ export default function GestionProfesionalesPage() {
                 className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
                 Cancelar
               </button>
-              <button onClick={() => setModalForm(null)}
-                className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold transition-colors">
-                {modalForm === "nuevo" ? "Crear profesional" : "Guardar cambios"}
+              <button onClick={guardarForm} disabled={guardando}
+                className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold transition-colors disabled:opacity-60">
+                {guardando ? 'Guardando...' : (modalForm === "nuevo" ? "Crear profesional" : "Guardar cambios")}
               </button>
             </div>
           </div>

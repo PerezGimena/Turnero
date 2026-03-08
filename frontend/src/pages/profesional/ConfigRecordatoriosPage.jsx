@@ -1,26 +1,90 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Mail, MessageCircle, Save, Send, AlertCircle } from 'lucide-react';
+import axios from 'axios';
+import useAuthStore from '../../store/useAuthStore';
 
 const ConfiguracionRecordatorios = () => {
   // Paleta de colores profesional
   const brand = { DEFAULT: '#10B981', dark: '#059669', light: '#ECFDF5' };
+
+  const { token } = useAuthStore();
+  const headers = { Authorization: `Bearer ${token}` };
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
 
   const [config, setConfig] = useState({
     emailActive: true,
     whatsappActive: false,
     whatsappNumber: '',
     r1: true,
-    r1Time: '48 horas antes',
+    r1Time: 24,
     r2: true,
-    r2Time: '2 horas antes',
+    r2Time: 2,
     r3: false,
+    r3Time: 72,
     confirmacionAuto: true,
     notifAusencia: false,
-    msgEmail: "Hola {{nombre}}, te recordamos tu turno el día {{fecha}} a las {{hora}} en {{direccion}}.",
+    msgEmail: "Hola {{nombre}}, te recordamos tu turno el día {{fecha}} a las {{hora}}.",
     msgWhatsapp: "¡Hola {{nombre}}! 👋 Te recordamos tu cita de hoy a las {{hora}}. ¿Confirmas tu asistencia?"
   });
 
-  const handleToggle = (field) => setConfig({ ...config, [field]: !config[field] });
+  useEffect(() => {
+    axios.get('http://localhost:3001/api/profesional/recordatorios/config', { headers })
+      .then(({ data }) => {
+        const d = data.data;
+        setConfig(c => ({
+          ...c,
+          emailActive: d.emailHabilitado ?? true,
+          whatsappActive: d.whatsappHabilitado ?? false,
+          whatsappNumber: d.whatsappNumero || '',
+          r1: d.recordatorio1Habilitado ?? true,
+          r1Time: d.recordatorio1HorasAntes ?? 24,
+          r2: d.recordatorio2Habilitado ?? false,
+          r2Time: d.recordatorio2HorasAntes ?? 2,
+          r3: d.recordatorio3Habilitado ?? false,
+          r3Time: d.recordatorio3HorasAntes ?? 72,
+          notifAusencia: d.recordatorioAusencia ?? false,
+          msgEmail: d.mensajeEmail || c.msgEmail,
+          msgWhatsapp: d.mensajeWhatsapp || c.msgWhatsapp,
+        }));
+      })
+      .catch(console.error)
+      .finally(() => setCargando(false));
+  }, [token]);
+
+  async function guardar() {
+    setGuardando(true);
+    try {
+      await axios.put('http://localhost:3001/api/profesional/recordatorios/config', {
+        emailHabilitado: config.emailActive,
+        whatsappHabilitado: config.whatsappActive,
+        whatsappNumero: config.whatsappNumber,
+        recordatorio1Habilitado: config.r1,
+        recordatorio1HorasAntes: config.r1Time,
+        recordatorio2Habilitado: config.r2,
+        recordatorio2HorasAntes: config.r2Time,
+        recordatorio3Habilitado: config.r3,
+        recordatorio3HorasAntes: config.r3Time,
+        recordatorioAusencia: config.notifAusencia,
+        mensajeEmail: config.msgEmail,
+        mensajeWhatsapp: config.msgWhatsapp,
+      }, { headers });
+      alert('Configuración guardada');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function enviarPrueba() {
+    try {
+      await axios.post('http://localhost:3001/api/profesional/recordatorios/prueba', {}, { headers });
+      alert('Recordatorio de prueba enviado');
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-gray-50 min-h-screen font-sans text-gray-800">
@@ -96,13 +160,13 @@ const ConfiguracionRecordatorios = () => {
                   className="flex-1 p-2 bg-gray-50 border border-gray-200 rounded text-sm disabled:opacity-50 outline-none focus:ring-1"
                   style={{ focusRingColor: brand.DEFAULT }}
                   value={config[`r${num}Time`]}
-                  onChange={(e) => setConfig({...config, [`r${num}Time`]: e.target.value})}
+                  onChange={(e) => setConfig(c => ({...c, [`r${num}Time`]: parseInt(e.target.value)}))}
                 >
-                  <option>72 horas antes</option>
-                  <option>48 horas antes</option>
-                  <option>24 horas antes</option>
-                  <option>3 horas antes</option>
-                  <option>1 hora antes</option>
+                  <option value={72}>72 horas antes</option>
+                  <option value={48}>48 horas antes</option>
+                  <option value={24}>24 horas antes</option>
+                  <option value={3}>3 horas antes</option>
+                  <option value={1}>1 hora antes</option>
                 </select>
               </div>
             ))}
@@ -135,6 +199,7 @@ const ConfiguracionRecordatorios = () => {
           <button 
             className="mt-4 flex items-center gap-2 font-bold text-sm hover:opacity-80 transition-opacity"
             style={{ color: brand.DEFAULT }}
+            onClick={enviarPrueba}
           >
             <Send size={16} /> Enviar recordatorio de prueba
           </button>
@@ -186,12 +251,14 @@ const ConfiguracionRecordatorios = () => {
         {/* FOOTER */}
         <footer className="flex justify-end pt-4">
           <button 
-            className="flex items-center gap-2 text-white px-10 py-3 rounded-lg font-bold shadow-lg transition-all active:scale-95"
+            className="flex items-center gap-2 text-white px-10 py-3 rounded-lg font-bold shadow-lg transition-all active:scale-95 disabled:opacity-60"
             style={{ backgroundColor: brand.DEFAULT }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = brand.dark}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = brand.DEFAULT}
+            onClick={guardar}
+            disabled={guardando || cargando}
           >
-            <Save size={20} /> Guardar configuración
+            <Save size={20} /> {guardando ? 'Guardando...' : 'Guardar configuración'}
           </button>
         </footer>
       </div>

@@ -52,6 +52,9 @@ export default function Sidebar() {
         <Link to="/profesional/pagos-config" className={getItemClass('/profesional/pagos-config')}>
           <span>💳</span> Pagos
         </Link>
+        <Link to="/profesional/pagos-recibidos" className={getItemClass('/profesional/pagos-recibidos')}>
+          <span>💰</span> Pagos recibidos
+        </Link>
         <Link to="/profesional/perfil-publico" className={getItemClass('/profesional/perfil-publico')}>
           <span>🌐</span> Perfil público
         </Link>

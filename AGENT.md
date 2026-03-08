@@ -1,7 +1,245 @@
+# Sistema Multi-Agente TurnoSalud
+
+> Arquitectura de agentes IA especializados para el desarrollo del sistema.
+> Última actualización del sistema de agentes: 08/03/2026
+
+## Cómo trabajar con los agentes
+
+**Siempre activar primero el Coordinador.** El Coordinador lee este archivo, elige el agente correcto y actualiza AGENT.md al finalizar.
+
+## Agentes disponibles
+
+| Skill | Especialidad | Cuándo usarlo |
+|-------|-------------|---------------|
+| `coordinador/SKILL.md` | Arquitecto — orquesta todos los demás | SIEMPRE primero |
+| `backend/SKILL.md` | Express + Sequelize + JWT + Node.js | API, controladores, servicios |
+| `frontend/SKILL.md` | React 19 + Vite + Zustand + TanStack | Páginas, componentes, hooks |
+| `database/SKILL.md` | MySQL 8 + Sequelize + migraciones | Tablas, modelos, seeds |
+| `disenio-web/SKILL.md` | Tailwind v3.4 + Shadcn + paleta | Sistema de diseño, CSS |
+| `qa/SKILL.md` | Testing + bugs + flujos | Validaciones, checklist, issues |
+| `devops/SKILL.md` | Deploy + CI/CD + vars de entorno | Infraestructura, scripts |
+| `salud/SKILL.md` | Lógica médica + Ley 25.326 | Reglas de negocio del sector salud |
+| `saas/SKILL.md` | Multi-tenant + planes + onboarding | Modelo SaaS, admin panel |
+| `automatizacion/SKILL.md` | Cron + recordatorios + triggers | Jobs automáticos |
+| `buenas-practicas/SKILL.md` | SOLID + DRY + naming + refactor | Code review |
+| `terminos/SKILL.md` | T&C + privacidad + Ley 25.326 | Textos legales |
+| `tutoriales/SKILL.md` | Manual de uso + onboarding docs | Guías de usuario |
+| `mercadopago/SKILL.md` | Checkout Pro + webhooks MP | Integración de pagos |
+| `cyberseguridad/SKILL.md` | OWASP + JWT + rate limiting | Seguridad del sistema |
+| `websocket/SKILL.md` | Socket.io + tiempo real | Notificaciones live |
+| `webhook/SKILL.md` | Eventos externos + firma + idempotencia | Webhooks entrantes |
+| `uxui/SKILL.md` | Experiencia usuario + accesibilidad | Flujos y UX |
+| `modularizacion/SKILL.md` | Separación concerns + estructura | Arquitectura frontend/backend |
+| `escalabilidad/SKILL.md` | Performance + caché + crecimiento | Optimización a escala |
+| `db-optimizacion/SKILL.md` | Índices + EXPLAIN + N+1 | Queries lentas, normalización |
+
+## Registro de trabajo de agentes
+
+| Fecha | Agente | Tarea | Archivos | Estado |
+|-------|--------|-------|----------|--------|
+| 08/03/2026 | coordinador | Creación del sistema de skills multi-agente | turnosalud-skills/* | ✅ Completado |
+| 2026 | frontend+backend | Fase 7 — Integración API completa todas las páginas | ConfigRecordatoriosPage, ConfigPagosPage, PagosRecibidosPage, GestionProfesionalesPage, DashboardAdminPage, PacientesPage, GestionTurnoPage + admin.controller (updateProfesional) + publico.controller (getTurno/cancelar/reprogramar) | ✅ Completado |
+
+---
+
 # Estado del Proyecto
-- [ ] Fase 1: Estructura y Auth (COMPLETADO)
-- [ ] Fase 2: Módulo Paciente (EN PROCESO)
-- [ ] ... (resto de fases)
+
+> Última actualización: 08/03/2026 — Análisis completo del sistema.
+
+## Fases de Implementación
+
+| Fase | Descripción | Estado |
+|------|-------------|--------|
+| Fase 1 | Estructura base y autenticación | ✅ COMPLETADO |
+| Fase 2 | Módulo Paciente (6 páginas) | ✅ COMPLETADO |
+| Fase 3 | Dashboard y Agenda profesional | ✅ COMPLETADO (Dashboard funcional con API real) |
+| Fase 4 | Turnos pendientes y Pacientes | ✅ COMPLETADO |
+| Fase 5 | Configuración (recordatorios, pagos, perfil) | ✅ COMPLETADO |
+| Fase 6 | Admin SaaS (login, dashboard, gestión) | ✅ COMPLETADO |
+| Fase 7 | Pulido, errores, responsive | ✅ COMPLETADO — todas las páginas conectadas a API real |
+
+---
+
+## Inventario real del sistema (al 08/03/2026)
+
+### Estructura de carpetas
+
+```
+/
+├── frontend/              ← Código React (Vite)
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── pacientes/       ← 6 páginas módulo paciente
+│   │   │   ├── profesional/     ← 10 páginas módulo profesional
+│   │   │   └── admin/           ← 3 páginas módulo admin
+│   │   ├── layouts/             ← ProfesionalLayout, AdminLayout, PacienteLayout
+│   │   ├── components/layout/   ← Sidebar.jsx, TopBar.jsx
+│   │   ├── store/               ← useAuthStore.jsx (Zustand + persist)
+│   │   └── router/              ← index.jsx (createBrowserRouter)
+└── backend/               ← Express + Sequelize + MySQL
+    ├── src/
+    │   ├── controllers/         ← auth, publico, profesional, admin
+    │   ├── routes/              ← auth, publico, profesional, admin + index
+    │   ├── models/              ← 7 modelos Sequelize
+    │   ├── services/            ← disponibilidad, turno, recordatorio, referencia
+    │   ├── middlewares/         ← auth, errorHandler, validate
+    │   ├── schemas/             ← auth.schema.js
+    │   └── config/              ← database, jwt, mailer
+    └── database/
+        ├── scripts/setup.sql    ← Script SQL completo (7 tablas)
+        └── seeders/index.js     ← Datos de prueba
+```
+
+---
+
+### FRONTEND — Páginas implementadas
+
+#### Módulo Paciente (`frontend/src/pages/pacientes/`)
+| Archivo | Ruta | Estado |
+|---------|------|--------|
+| `LandingProfesionalPage.jsx` | `/:slug` | ✅ Implementado — conecta a API `/api/publico/:slug` |
+| `CalendarioReservaPage.jsx` | `/:slug/reservar` | ✅ Implementado |
+| `FormularioReservaPage.jsx` | `/:slug/reservar/formulario` | ✅ Implementado |
+| `ConfirmacionPendientePage.jsx` | `/:slug/reservar/pendiente` | ✅ Implementado |
+| `TurnoConfirmadoPage.jsx` | `/:slug/reservar/confirmado` | ✅ Implementado |
+| `GestionTurnoPage.jsx` | `/:slug/turno/:id` | ✅ Implementado |
+
+#### Módulo Profesional (`frontend/src/pages/profesional/`)
+| Archivo | Ruta | Estado |
+|---------|------|--------|
+| `LoginPage.jsx` | `/profesional/login` | ✅ Implementado — axios + Zustand + JWT |
+| `RegistroPage.jsx` | `/profesional/registro` | ✅ Implementado |
+| `DashboardProfesionalPage.jsx` | `/profesional/dashboard` | ✅ Implementado — métricas reales desde API |
+| `AgendaProfesionalPage.jsx` | `/profesional/agenda` | ✅ Implementado |
+| `TurnosPendientesPage.jsx` | `/profesional/turnos-pendientes` | ✅ Implementado |
+| `PacientesPage.jsx` | `/profesional/pacientes` | ✅ Implementado |
+| `ConfigRecordatoriosPage.jsx` | `/profesional/recordatorios` | ✅ Implementado |
+| `ConfigPagosPage.jsx` | `/profesional/pagos-config` | ✅ Implementado |
+| `PagosRecibidosPage.jsx` | `/profesional/pagos-recibidos` | ✅ Implementado |
+| `PerfilPublicoPage.jsx` | `/profesional/perfil-publico` | ✅ Implementado |
+
+#### Módulo Admin (`frontend/src/pages/admin/`)
+| Archivo | Ruta | Estado |
+|---------|------|--------|
+| `AdminLoginPage.jsx` | `/admin/login` | ✅ Implementado |
+| `DashboardAdminPage.jsx` | `/admin/dashboard` | ✅ Implementado |
+| `GestionProfesionalesPage.jsx` | `/admin/profesionales` | ✅ Implementado |
+
+#### Layouts y Componentes
+| Archivo | Estado | Notas |
+|---------|--------|-------|
+| `ProfesionalLayout.jsx` | ✅ | Sidebar 240px + TopBar + Outlet |
+| `AdminLayout.jsx` | ✅ | Sidebar violeta 240px + Outlet |
+| `PacienteLayout.jsx` | ✅ | Solo `<Outlet />` sin sidebar |
+| `Sidebar.jsx` | ✅ | Zustand logout, active state, links completos |
+| `TopBar.jsx` | ✅ | Implementado |
+| `useAuthStore.jsx` | ✅ | Zustand + persist (localStorage `turnosalud-auth`) |
+| `router/index.jsx` | ✅ | createBrowserRouter, 18 rutas + 404 `NotFoundPage` |
+
+---
+
+### BACKEND — API implementada
+
+**URL base:** `http://localhost:3001/api`
+
+#### Autenticación (`/api/auth`)
+| Método | Ruta | Estado |
+|--------|------|--------|
+| POST | `/auth/profesional/login` | ✅ JWT, bcrypt |
+| POST | `/auth/profesional/registro` | ✅ Genera slug único automáticamente |
+| GET  | `/auth/profesional/me` | ✅ Auth middleware |
+| POST | `/auth/admin/login` | ✅ JWT |
+| GET  | `/auth/admin/me` | ✅ Auth middleware |
+
+#### Público — sin auth (`/api/publico`)
+| Método | Ruta | Estado |
+|--------|------|--------|
+| GET  | `/publico/:slug` | ✅ Perfil público, excluye passwordHash |
+| GET  | `/publico/:slug/horarios?fecha=` | ✅ Slots disponibles |
+| POST | `/publico/:slug/reservar` | ✅ Validación Zod |
+| GET  | `/publico/:slug/turno/:id` | ✅ Turno del paciente (datos + profesional) |
+| PATCH | `/publico/:slug/turno/:id/cancelar` | ✅ Cancela turno del paciente |
+| PATCH | `/publico/:slug/turno/:id/reprogramar` | ✅ Reprograma — verifica slot disponible |
+
+#### Profesional — requiere JWT (`/api/profesional`)
+| Método | Ruta | Estado |
+|--------|------|--------|
+| GET  | `/profesional/turnos` | ✅ Filtros: fecha, estado, paginación |
+| POST | `/profesional/turnos` | ✅ Turno manual |
+| GET  | `/profesional/turnos/:id` | ✅ |
+| PATCH | `/profesional/turnos/:id/confirmar` | ✅ |
+| PATCH | `/profesional/turnos/:id/rechazar` | ✅ Requiere motivo |
+| GET  | `/profesional/pacientes` | ✅ |
+| GET  | `/profesional/pacientes/:id` | ✅ |
+| GET  | `/profesional/perfil` | ✅ |
+| PUT  | `/profesional/perfil` | ✅ |
+| GET  | `/profesional/dashboard/metricas` | ✅ |
+| GET  | `/profesional/recordatorios/config` | ✅ |
+| PUT  | `/profesional/recordatorios/config` | ✅ |
+| POST | `/profesional/recordatorios/prueba` | ✅ |
+| GET  | `/profesional/pagos` | ✅ |
+
+#### Admin — requiere JWT admin (`/api/admin`)
+| Método | Ruta | Estado |
+|--------|------|--------|
+| GET  | `/admin/profesionales` | ✅ Búsqueda + paginación |
+| POST | `/admin/profesionales` | ✅ |
+| PUT  | `/admin/profesionales/:id` | ✅ Editar profesional (email/slug únicos, password opcional) |
+| PATCH | `/admin/profesionales/:id/estado` | ✅ |
+| DELETE | `/admin/profesionales/:id` | ✅ |
+| POST | `/admin/profesionales/:id/impersonar` | ✅ |
+| GET  | `/admin/dashboard/metricas` | ✅ |
+
+---
+
+### BASE DE DATOS — MySQL 8 (`turnosalud`)
+
+**Tablas creadas y con datos de prueba:**
+
+| Tabla | Registros actuales | Descripción |
+|-------|-------------------|-------------|
+| `Admins` | 1 | admin@turnosalud.com |
+| `Profesionales` | 2 | juan@medico.com, ana@medica.com |
+| `ConfiguracionDias` | 14 | 7 días × 2 profesionales |
+| `ConfiguracionRecordatorios` | 2 | Config por profesional |
+| `Pacientes` | 5 | Distribuidos entre ambos profesionales |
+| `Turnos` | 10 | Estados variados |
+| `Pagos` | 0 | Sin pagos creados aún |
+
+**Credenciales de prueba:**
+- Admin: `admin@turnosalud.com` / `Admin123!`
+- Prof 1: `juan@medico.com` / `Medico123!` → slug: `juan-perez`
+- Prof 2: `ana@medica.com` / `Medico123!` → slug: `ana-gomez`
+
+---
+
+### PENDIENTES / ISSUES CONOCIDOS
+
+| Issue | Descripción | Prioridad |
+|-------|-------------|-----------|
+| ⚠️ `NotFoundPage` inline | Definida como `() => <div>404...</div>` en `pages/index.jsx`. Necesita página real | 🟢 Baja |
+| ⚠️ MercadoPago no integrado | `ConfigPagosPage` guarda la config pero el checkout real con MP no está implementado | 🟡 Media |
+| ⚠️ WhatsApp recordatorios simulados | `recordatorio.service.js` envía emails pero WhatsApp requiere integración externa (Twilio/WATI) | 🟡 Media |
+| ⚠️ Botones "Nuevo turno" y "Enviar mensaje" en PacientesPage | Botones presentes pero sin funcionalidad (navegan a nada) | 🟢 Baja |
+
+---
+
+### SCRIPTS DISPONIBLES
+
+```bash
+# Backend
+cd backend
+npm run dev        # Inicia con nodemon (puerto 3001)
+npm run seed       # Inserta datos de prueba
+
+# Frontend
+cd frontend
+npm run dev        # Inicia con Vite (puerto 5173)
+
+# Base de datos
+# Ejecutar script SQL (desde PowerShell):
+Get-Content backend/database/scripts/setup.sql | & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root "-pMatias1234!"
+```
 
 # Instrucciones de Trabajo
 1. Lee siempre este archivo antes de empezar.

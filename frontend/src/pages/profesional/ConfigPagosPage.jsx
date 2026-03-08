@@ -1,17 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DollarSign, Check, Link, ShieldCheck, CreditCard, Save, AlertCircle } from 'lucide-react';
+import axios from 'axios';
+import useAuthStore from '../../store/useAuthStore';
 
 const ConfigPagosProfesional = () => {
   // Identidad visual
   const brand = { DEFAULT: '#10B981', dark: '#059669', light: '#ECFDF5' };
 
+  const { token } = useAuthStore();
+  const headers = { Authorization: `Bearer ${token}` };
+  const [guardando, setGuardando] = useState(false);
+
   // Estados
   const [pagoObligatorio, setPagoObligatorio] = useState(true);
-  const [monto, setMonto] = useState('4500');
+  const [monto, setMonto] = useState('0');
   const [moneda, setMoneda] = useState('ARS');
   const [pasarela, setPasarela] = useState('mercadopago'); // 'mercadopago' | 'stripe'
   const [statusConexion, setStatusConexion] = useState('DESCONECTADO');
   const [reembolsoActivo, setReembolsoActivo] = useState(true);
+
+  useEffect(() => {
+    axios.get('http://localhost:3001/api/profesional/perfil', { headers })
+      .then(({ data }) => {
+        const p = data.data;
+        if (p.pagoObligatorio !== undefined) setPagoObligatorio(p.pagoObligatorio);
+        if (p.montoPorTurno !== undefined) setMonto(String(p.montoPorTurno));
+        if (p.moneda) setMoneda(p.moneda);
+      })
+      .catch(console.error);
+  }, [token]);
+
+  async function guardar() {
+    setGuardando(true);
+    try {
+      await axios.put('http://localhost:3001/api/profesional/perfil', {
+        pagoObligatorio,
+        montoPorTurno: parseFloat(monto) || 0,
+        moneda,
+      }, { headers });
+      alert('Configuración guardada');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-gray-50 min-h-screen font-sans text-gray-800">
@@ -193,10 +226,12 @@ const ConfigPagosProfesional = () => {
         {/* FOOTER */}
         <footer className="flex justify-end pt-4 pb-10">
           <button 
-            className="flex items-center gap-2 text-white px-12 py-4 rounded-xl font-black shadow-lg shadow-emerald-200 transition-all hover:scale-[1.02] active:scale-95"
+            className="flex items-center gap-2 text-white px-12 py-4 rounded-xl font-black shadow-lg shadow-emerald-200 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60"
             style={{ backgroundColor: brand.DEFAULT }}
+            onClick={guardar}
+            disabled={guardando}
           >
-            <Save size={20} /> Guardar configuración
+            <Save size={20} /> {guardando ? 'Guardando...' : 'Guardar configuración'}
           </button>
         </footer>
       </div>

@@ -1,7 +1,16 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import PacienteLayout from '../layouts/PacienteLayout.jsx'
 import ProfesionalLayout from '../layouts/ProfesionalLayout.jsx'
 import AdminLayout from '../layouts/AdminLayout.jsx'
+import useAuthStore from '../store/useAuthStore.jsx'
+
+// Componente que protege rutas privadas según rol
+function ProtectedRoute({ redirectTo, rol }) {
+  const { esAutenticado, rol: userRol } = useAuthStore()
+  if (!esAutenticado) return <Navigate to={redirectTo} replace />
+  if (rol && userRol !== rol) return <Navigate to={redirectTo} replace />
+  return <Outlet />
+}
 
 
 import {
@@ -47,16 +56,21 @@ const router = createBrowserRouter([
   // Módulo Profesional (Privado - con Sidebar)
   {
     path: '/profesional',
-    element: <ProfesionalLayout />,
+    element: <ProtectedRoute redirectTo="/profesional/login" rol="profesional" />,
     children: [
-      { path: 'dashboard', element: <DashboardProfesionalPage /> },
-      { path: 'agenda', element: <AgendaProfesionalPage /> },
-      { path: 'turnos-pendientes', element: <TurnosPendientesPage /> },
-      { path: 'pacientes', element: <PacientesPage /> },
-      { path: 'recordatorios', element: <ConfigRecordatoriosPage /> },
-      { path: 'pagos-config', element: <ConfigPagosPage /> },
-      { path: 'pagos-recibidos', element: <PagosRecibidosPage /> },
-      { path: 'perfil-publico', element: <PerfilPublicoPage /> },
+      {
+        element: <ProfesionalLayout />,
+        children: [
+          { path: 'dashboard', element: <DashboardProfesionalPage /> },
+          { path: 'agenda', element: <AgendaProfesionalPage /> },
+          { path: 'turnos-pendientes', element: <TurnosPendientesPage /> },
+          { path: 'pacientes', element: <PacientesPage /> },
+          { path: 'recordatorios', element: <ConfigRecordatoriosPage /> },
+          { path: 'pagos-config', element: <ConfigPagosPage /> },
+          { path: 'pagos-recibidos', element: <PagosRecibidosPage /> },
+          { path: 'perfil-publico', element: <PerfilPublicoPage /> },
+        ]
+      }
     ]
   },
 
@@ -69,10 +83,15 @@ const router = createBrowserRouter([
   // Módulo Admin (Privado)
   {
     path: '/admin',
-    element: <AdminLayout />,
+    element: <ProtectedRoute redirectTo="/admin/login" rol="admin" />,
     children: [
-      { path: 'dashboard', element: <DashboardAdminPage /> },
-      { path: 'profesionales', element: <GestionProfesionalesPage /> },
+      {
+        element: <AdminLayout />,
+        children: [
+          { path: 'dashboard', element: <DashboardAdminPage /> },
+          { path: 'profesionales', element: <GestionProfesionalesPage /> },
+        ]
+      }
     ]
   },
 

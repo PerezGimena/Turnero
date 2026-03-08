@@ -1,127 +1,112 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Search, Plus, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
+  Search, Plus, X, ChevronLeft, ChevronRight,
   User, Mail, Phone, Calendar, Clock, Shield, TrendingUp,
-  CheckCircle2, XCircle, AlertCircle, CalendarPlus, MessageSquare,
-  ChevronsUpDown,
+  CalendarPlus, MessageSquare, Loader2,
 } from "lucide-react";
+import axios from "axios";
+import useAuthStore from "../../store/useAuthStore";
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-const pacientesMock = [
-  { id: 1, nombre: "Lucas Ramírez", email: "lucas@email.com", telefono: "+54 9 11 1234-5678", dni: "32456789", obraSocial: "OSDE", totalTurnos: 8, ausencias: 1, ultimoTurno: "2026-02-15", proximoTurno: "2026-03-11", historial: [
-    { fecha: "2026-02-15", hora: "09:00", estado: "CONFIRMADO", motivo: "Control anual" },
-    { fecha: "2025-11-10", hora: "10:30", estado: "CONFIRMADO", motivo: "Chequeo rutinario" },
-    { fecha: "2025-08-22", hora: "09:00", estado: "AUSENTE", motivo: "Control" },
-    { fecha: "2025-05-14", hora: "14:00", estado: "CONFIRMADO", motivo: "Resultado estudios" },
-  ]},
-  { id: 2, nombre: "Ana Gómez", email: "ana.gomez@gmail.com", telefono: "+54 9 11 9876-5432", dni: "40123456", obraSocial: "Swiss Medical", totalTurnos: 3, ausencias: 0, ultimoTurno: "2026-01-20", proximoTurno: null, historial: [
-    { fecha: "2026-01-20", hora: "09:30", estado: "CONFIRMADO", motivo: "Primera consulta" },
-    { fecha: "2025-10-05", hora: "11:00", estado: "CONFIRMADO", motivo: "Seguimiento" },
-    { fecha: "2025-07-18", hora: "09:00", estado: "CANCELADO", motivo: "Chequeo" },
-  ]},
-  { id: 3, nombre: "Carlos Méndez", email: "carlos.m@hotmail.com", telefono: "+54 9 351 555-0011", dni: null, obraSocial: null, totalTurnos: 5, ausencias: 2, ultimoTurno: "2026-02-28", proximoTurno: "2026-03-04", historial: [
-    { fecha: "2026-02-28", hora: "10:00", estado: "CONFIRMADO", motivo: "Control" },
-    { fecha: "2025-12-15", hora: "14:30", estado: "AUSENTE", motivo: "Análisis" },
-    { fecha: "2025-09-20", hora: "09:00", estado: "AUSENTE", motivo: "Seguimiento" },
-  ]},
-  { id: 4, nombre: "María Rodríguez", email: "maria.r@icloud.com", telefono: "+54 9 11 4455-6677", dni: "28901234", obraSocial: "Galeno", totalTurnos: 12, ausencias: 1, ultimoTurno: "2026-02-10", proximoTurno: "2026-03-05", historial: [
-    { fecha: "2026-02-10", hora: "09:30", estado: "CONFIRMADO", motivo: "Control anual" },
-    { fecha: "2025-11-02", hora: "10:00", estado: "CONFIRMADO", motivo: "Resultado estudios" },
-    { fecha: "2025-08-18", hora: "14:00", estado: "AUSENTE", motivo: "Chequeo" },
-  ]},
-  { id: 5, nombre: "Jorge Suárez", email: "jorge.s@outlook.com", telefono: "+54 9 11 7788-9900", dni: "35678901", obraSocial: "PAMI", totalTurnos: 6, ausencias: 3, ultimoTurno: "2025-12-01", proximoTurno: null, historial: [
-    { fecha: "2025-12-01", hora: "11:00", estado: "CANCELADO", motivo: "Primera consulta" },
-    { fecha: "2025-09-10", hora: "09:00", estado: "AUSENTE", motivo: "Control" },
-    { fecha: "2025-06-22", hora: "14:30", estado: "AUSENTE", motivo: "Análisis" },
-  ]},
-  { id: 6, nombre: "Paula Fernández", email: "paula.f@gmail.com", telefono: "+54 9 261 444-3322", dni: "38234567", obraSocial: "Medifé", totalTurnos: 4, ausencias: 0, ultimoTurno: "2026-02-20", proximoTurno: "2026-03-06", historial: [
-    { fecha: "2026-02-20", hora: "14:00", estado: "CONFIRMADO", motivo: "Seguimiento" },
-    { fecha: "2025-11-15", hora: "09:30", estado: "CONFIRMADO", motivo: "Control" },
-  ]},
-  { id: 7, nombre: "Roberto Silva", email: "roberto.s@yahoo.com", telefono: "+54 9 11 3344-5566", dni: "29876543", obraSocial: "OSDE", totalTurnos: 9, ausencias: 0, ultimoTurno: "2026-02-25", proximoTurno: "2026-03-11", historial: [
-    { fecha: "2026-02-25", hora: "14:30", estado: "CONFIRMADO", motivo: "Control anual" },
-    { fecha: "2025-10-30", hora: "09:00", estado: "CONFIRMADO", motivo: "Resultado estudios" },
-  ]},
-  { id: 8, nombre: "Valentina López", email: "vale.lopez@gmail.com", telefono: "+54 9 11 8899-1122", dni: "42345678", obraSocial: null, totalTurnos: 2, ausencias: 1, ultimoTurno: "2025-11-05", proximoTurno: "2026-03-09", historial: [
-    { fecha: "2025-11-05", hora: "15:00", estado: "AUSENTE", motivo: "Primera consulta" },
-    { fecha: "2025-08-12", hora: "09:00", estado: "CONFIRMADO", motivo: "Consulta" },
-  ]},
-];
+const POR_PAGINA = 10;
 
-const POR_PAGINA = 5;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function initials(n) { return n.split(" ").map(x => x[0]).slice(0, 2).join("").toUpperCase(); }
+function initials(nombre, apellido) {
+  return `${nombre?.[0] ?? ''}${apellido?.[0] ?? ''}`.toUpperCase();
+}
 function formatFecha(f) {
   if (!f) return "—";
-  return new Date(f + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(f).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
 }
-function tasaAsistencia(total, ausencias) {
-  if (!total) return "—";
-  return `${Math.round(((total - ausencias) / total) * 100)}%`;
+function tasaAsistencia(turnos) {
+  if (!turnos?.length) return "—";
+  const ausentes = turnos.filter(t => t.estado === 'AUSENTE').length;
+  return `${Math.round(((turnos.length - ausentes) / turnos.length) * 100)}%`;
 }
 
-const COLORES = ["bg-blue-100 text-blue-700","bg-violet-100 text-violet-700","bg-rose-100 text-rose-700","bg-amber-100 text-amber-700","bg-teal-100 text-teal-700","bg-indigo-100 text-indigo-700","bg-pink-100 text-pink-700","bg-cyan-100 text-cyan-700"];
+const COLORES = [
+  "bg-blue-100 text-blue-700", "bg-violet-100 text-violet-700",
+  "bg-rose-100 text-rose-700",  "bg-amber-100 text-amber-700",
+  "bg-teal-100 text-teal-700",  "bg-indigo-100 text-indigo-700",
+  "bg-pink-100 text-pink-700",  "bg-cyan-100 text-cyan-700",
+];
 
 const ESTADO_CFG = {
   CONFIRMADO: { cls: "text-emerald-600", dot: "bg-emerald-500", label: "Asistió" },
+  PENDIENTE:  { cls: "text-amber-500",   dot: "bg-amber-400",   label: "Pendiente" },
   AUSENTE:    { cls: "text-red-500",     dot: "bg-red-400",     label: "Ausente" },
   CANCELADO:  { cls: "text-slate-400",   dot: "bg-slate-300",   label: "Cancelado" },
 };
 
-// ── Componente principal ──────────────────────────────────────────────────────
+const inputCls = "w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all";
+
 export default function PacientesPage() {
+  const { token } = useAuthStore();
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const [pacientes, setPacientes] = useState([]);
+  const [pagination, setPagination] = useState({ total: 0, pagina: 1, totalPaginas: 1 });
+  const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
-  const [filtro, setFiltro] = useState("todos");
   const [pagina, setPagina] = useState(1);
-  const [ordenCol, setOrdenCol] = useState("nombre");
-  const [ordenDir, setOrdenDir] = useState("asc");
-  const [panelPaciente, setPanelPaciente] = useState(null);
+  const [panelPaciente, setPanelPaciente] = useState(null); // paciente básico seleccionado
+  const [detalle, setDetalle] = useState(null);             // paciente con turnos
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [modalAgregar, setModalAgregar] = useState(false);
+  const [form, setForm] = useState({ nombre: '', apellido: '', email: '', telefono: '', dni: '', obraSocial: '' });
+  const [guardando, setGuardando] = useState(false);
+  const timer = useRef(null);
 
-  // Filtrado + búsqueda
-  const filtrados = useMemo(() => {
-    let lista = [...pacientesMock];
-    if (busqueda) {
-      const q = busqueda.toLowerCase();
-      lista = lista.filter(p =>
-        p.nombre.toLowerCase().includes(q) ||
-        p.email.toLowerCase().includes(q) ||
-        p.telefono.includes(q) ||
-        (p.dni && p.dni.includes(q))
-      );
+  const cargarPacientes = useCallback(async (p, b) => {
+    setCargando(true);
+    try {
+      const params = new URLSearchParams({ pagina: p, porPagina: POR_PAGINA, busqueda: b });
+      const { data } = await axios.get(`http://localhost:3001/api/profesional/pacientes?${params}`, { headers });
+      setPacientes(data.data || []);
+      setPagination(data.pagination || { total: 0, pagina: p, totalPaginas: 1 });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCargando(false);
     }
-    if (filtro === "activos") lista = lista.filter(p => p.proximoTurno);
-    if (filtro === "ausencias") lista = lista.filter(p => p.ausencias > 0);
+  }, [token]);
 
-    // Ordenamiento
-    lista.sort((a, b) => {
-      let va = a[ordenCol], vb = b[ordenCol];
-      if (typeof va === "string") va = va?.toLowerCase() ?? "";
-      if (typeof vb === "string") vb = vb?.toLowerCase() ?? "";
-      va = va ?? -Infinity; vb = vb ?? -Infinity;
-      if (va < vb) return ordenDir === "asc" ? -1 : 1;
-      if (va > vb) return ordenDir === "asc" ? 1 : -1;
-      return 0;
-    });
-    return lista;
-  }, [busqueda, filtro, ordenCol, ordenDir]);
+  useEffect(() => { cargarPacientes(pagina, busqueda); }, [pagina]);
 
-  const totalPaginas = Math.ceil(filtrados.length / POR_PAGINA);
-  const paginados = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
-
-  function ordenar(col) {
-    if (ordenCol === col) setOrdenDir(d => d === "asc" ? "desc" : "asc");
-    else { setOrdenCol(col); setOrdenDir("asc"); }
+  function handleBusqueda(valor) {
+    setBusqueda(valor);
     setPagina(1);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => cargarPacientes(1, valor), 400);
   }
 
-  function IconOrden({ col }) {
-    if (ordenCol !== col) return <ChevronsUpDown size={13} className="text-slate-300" />;
-    return ordenDir === "asc"
-      ? <ChevronUp size={13} className="text-emerald-500" />
-      : <ChevronDown size={13} className="text-emerald-500" />;
+  useEffect(() => {
+    if (!panelPaciente) { setDetalle(null); return; }
+    setCargandoDetalle(true);
+    axios.get(`http://localhost:3001/api/profesional/pacientes/${panelPaciente.id}`, { headers })
+      .then(({ data }) => setDetalle(data.data))
+      .catch(console.error)
+      .finally(() => setCargandoDetalle(false));
+  }, [panelPaciente?.id]);
+
+  async function guardarPaciente() {
+    if (!form.nombre || !form.apellido || !form.email || !form.telefono) return;
+    setGuardando(true);
+    try {
+      await axios.post('http://localhost:3001/api/profesional/pacientes', form, { headers });
+      setModalAgregar(false);
+      setForm({ nombre: '', apellido: '', email: '', telefono: '', dni: '', obraSocial: '' });
+      cargarPacientes(1, busqueda);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setGuardando(false);
+    }
   }
+
+  // Estadísticas del panel (calculadas desde los turnos del detalle)
+  const turnos = detalle?.turnos || [];
+  const ausencias = turnos.filter(t => t.estado === 'AUSENTE').length;
+  const ultimoTurno = turnos.find(t => t.estado === 'CONFIRMADO')?.fecha;
+  const proximoTurno = [...turnos].reverse().find(t => t.estado === 'PENDIENTE')?.fecha;
 
   return (
     <div className="h-full flex bg-slate-50 overflow-hidden" style={{ fontFamily: "'DM Sans','Helvetica Neue',sans-serif" }}>
@@ -135,7 +120,7 @@ export default function PacientesPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-lg font-bold text-slate-900">Mis Pacientes</h1>
               <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full">
-                {filtrados.length}
+                {pagination.total}
               </span>
             </div>
             <button onClick={() => setModalAgregar(true)}
@@ -144,92 +129,59 @@ export default function PacientesPage() {
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="text" value={busqueda} onChange={e => { setBusqueda(e.target.value); setPagina(1); }}
-                placeholder="Buscar por nombre, email, teléfono o DNI..."
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all" />
-            </div>
-            <div className="flex bg-slate-100 rounded-xl p-0.5 gap-0.5">
-              {[
-                { val: "todos", label: "Todos" },
-                { val: "activos", label: "Con próximo turno" },
-                { val: "ausencias", label: "Con ausencias" },
-              ].map(f => (
-                <button key={f.val} onClick={() => { setFiltro(f.val); setPagina(1); }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
-                    ${filtro === f.val ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-                  {f.label}
-                </button>
-              ))}
-            </div>
+          <div className="relative max-w-sm">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input type="text" value={busqueda} onChange={e => handleBusqueda(e.target.value)}
+              placeholder="Buscar por nombre, email, teléfono o DNI..."
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all" />
           </div>
         </div>
 
         {/* Tabla */}
         <div className="flex-1 overflow-auto px-6 py-4">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50">
-                  {[
-                    { col: "nombre", label: "Paciente" },
-                    { col: "email", label: "Email" },
-                    { col: "telefono", label: "Teléfono" },
-                    { col: "totalTurnos", label: "Turnos" },
-                    { col: "ultimoTurno", label: "Último turno" },
-                    { col: "ausencias", label: "Ausencias" },
-                  ].map(({ col, label }) => (
-                    <th key={col} onClick={() => ordenar(col)}
-                      className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-slate-700 select-none">
-                      <div className="flex items-center gap-1.5">
-                        {label} <IconOrden col={col} />
-                      </div>
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide text-right">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paginados.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-16">
-                      <User size={24} className="text-slate-300 mx-auto mb-2" />
-                      <p className="text-sm text-slate-400">No se encontraron pacientes</p>
-                    </td>
+            {cargando ? (
+              <div className="flex items-center justify-center py-20 text-slate-400">
+                <Loader2 size={24} className="animate-spin mr-2" /> Cargando pacientes...
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50">
+                    <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Paciente</th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Email</th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Teléfono</th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">DNI</th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Alta</th>
+                    <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide text-right">Acciones</th>
                   </tr>
-                ) : paginados.map((p, idx) => {
-                  const colorIdx = pacientesMock.findIndex(pm => pm.id === p.id);
-                  return (
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pacientes.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-16">
+                        <User size={24} className="text-slate-300 mx-auto mb-2" />
+                        <p className="text-sm text-slate-400">No se encontraron pacientes</p>
+                      </td>
+                    </tr>
+                  ) : pacientes.map((p, idx) => (
                     <tr key={p.id} onClick={() => setPanelPaciente(p)}
                       className={`cursor-pointer transition-colors hover:bg-slate-50 ${panelPaciente?.id === p.id ? "bg-emerald-50/40" : ""}`}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${COLORES[colorIdx % COLORES.length]}`}>
-                            {initials(p.nombre)}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${COLORES[idx % COLORES.length]}`}>
+                            {initials(p.nombre, p.apellido)}
                           </div>
                           <div>
-                            <p className="font-semibold text-slate-800">{p.nombre}</p>
+                            <p className="font-semibold text-slate-800">{p.nombre} {p.apellido}</p>
                             {p.obraSocial && <p className="text-xs text-slate-400">{p.obraSocial}</p>}
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-slate-500 text-xs">{p.email}</td>
                       <td className="px-4 py-3 text-slate-500 text-xs">{p.telefono}</td>
-                      <td className="px-4 py-3">
-                        <span className="font-semibold text-slate-700">{p.totalTurnos}</span>
-                        <span className="text-xs text-slate-400 ml-1">· {tasaAsistencia(p.totalTurnos, p.ausencias)}</span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">{formatFecha(p.ultimoTurno)}</td>
-                      <td className="px-4 py-3">
-                        {p.ausencias === 0
-                          ? <span className="text-xs text-emerald-600 font-semibold">Ninguna</span>
-                          : <span className="text-xs font-semibold text-red-500">{p.ausencias}</span>
-                        }
-                      </td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">{p.dni || "—"}</td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{formatFecha(p.createdAt)}</td>
                       <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                         <button onClick={() => setPanelPaciente(p)}
                           className="text-xs font-semibold text-emerald-600 hover:underline">
@@ -237,30 +189,30 @@ export default function PacientesPage() {
                         </button>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            )}
 
             {/* Paginación */}
-            {totalPaginas > 1 && (
+            {pagination.totalPaginas > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
                 <p className="text-xs text-slate-400">
-                  Mostrando {(pagina - 1) * POR_PAGINA + 1}–{Math.min(pagina * POR_PAGINA, filtrados.length)} de {filtrados.length}
+                  Página {pagina} de {pagination.totalPaginas} · {pagination.total} pacientes
                 </p>
                 <div className="flex items-center gap-1">
                   <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
                     className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors">
                     <ChevronLeft size={14} />
                   </button>
-                  {Array.from({ length: totalPaginas }, (_, i) => i + 1).map(n => (
+                  {Array.from({ length: Math.min(pagination.totalPaginas, 5) }, (_, i) => i + 1).map(n => (
                     <button key={n} onClick={() => setPagina(n)}
                       className={`w-7 h-7 rounded-lg text-xs font-semibold transition-colors
                         ${pagina === n ? "bg-slate-900 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
                       {n}
                     </button>
                   ))}
-                  <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
+                  <button onClick={() => setPagina(p => Math.min(pagination.totalPaginas, p + 1))} disabled={pagina === pagination.totalPaginas}
                     className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors">
                     <ChevronRight size={14} />
                   </button>
@@ -271,7 +223,7 @@ export default function PacientesPage() {
         </div>
       </div>
 
-      {/* ── Panel lateral detalle paciente ── */}
+      {/* ── Panel lateral detalle ── */}
       {panelPaciente && (
         <>
           <div className="fixed inset-0 z-30 lg:hidden bg-black/20" onClick={() => setPanelPaciente(null)} />
@@ -287,78 +239,87 @@ export default function PacientesPage() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              {/* Avatar + nombre */}
-              <div className="px-5 py-4 border-b border-slate-100">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm ${COLORES[pacientesMock.findIndex(p => p.id === panelPaciente.id) % COLORES.length]}`}>
-                    {initials(panelPaciente.nombre)}
+            {cargandoDetalle ? (
+              <div className="flex-1 flex items-center justify-center text-slate-400">
+                <Loader2 size={20} className="animate-spin mr-2" /> Cargando...
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto">
+                {/* Avatar + nombre */}
+                <div className="px-5 py-4 border-b border-slate-100">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
+                      {initials(panelPaciente.nombre, panelPaciente.apellido)}
+                    </div>
+                    <div>
+                      <p className="text-base font-bold text-slate-900">{panelPaciente.nombre} {panelPaciente.apellido}</p>
+                      {panelPaciente.obraSocial
+                        ? <p className="text-xs text-slate-400 flex items-center gap-1"><Shield size={10} />{panelPaciente.obraSocial}</p>
+                        : <p className="text-xs text-slate-400">Sin obra social</p>
+                      }
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-base font-bold text-slate-900">{panelPaciente.nombre}</p>
-                    {panelPaciente.obraSocial
-                      ? <p className="text-xs text-slate-400 flex items-center gap-1"><Shield size={10} />{panelPaciente.obraSocial}</p>
-                      : <p className="text-xs text-slate-400">Sin obra social</p>
-                    }
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
-                    <Mail size={12} className="text-slate-400 shrink-0" />{panelPaciente.email}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
-                    <Phone size={12} className="text-slate-400 shrink-0" />{panelPaciente.telefono}
-                  </div>
-                  {panelPaciente.dni && (
+                  <div className="space-y-1.5">
                     <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <User size={12} className="text-slate-400 shrink-0" />DNI {panelPaciente.dni}
+                      <Mail size={12} className="text-slate-400 shrink-0" />{panelPaciente.email}
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Estadísticas */}
-              <div className="px-5 py-4 border-b border-slate-100">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Estadísticas</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: "Total turnos", val: panelPaciente.totalTurnos, icon: Calendar },
-                    { label: "Asistencia", val: tasaAsistencia(panelPaciente.totalTurnos, panelPaciente.ausencias), icon: TrendingUp },
-                    { label: "Último turno", val: formatFecha(panelPaciente.ultimoTurno), icon: Clock },
-                    { label: "Próximo turno", val: formatFecha(panelPaciente.proximoTurno), icon: CalendarPlus },
-                  ].map(({ label, val, icon: Icon }) => (
-                    <div key={label} className="bg-slate-50 rounded-xl p-3">
-                      <Icon size={12} className="text-slate-400 mb-1" />
-                      <p className="text-xs font-bold text-slate-800">{val}</p>
-                      <p className="text-xs text-slate-400">{label}</p>
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <Phone size={12} className="text-slate-400 shrink-0" />{panelPaciente.telefono}
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Historial */}
-              <div className="px-5 py-4">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Historial de turnos</p>
-                <div className="space-y-2">
-                  {panelPaciente.historial.map((h, i) => {
-                    const cfg = ESTADO_CFG[h.estado] || ESTADO_CFG.CANCELADO;
-                    return (
-                      <div key={i} className="flex items-start gap-2.5 py-2 border-b border-slate-100 last:border-0">
-                        <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${cfg.dot}`} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs font-semibold text-slate-700 truncate">{h.motivo || "Sin motivo"}</p>
-                            <span className={`text-xs font-semibold shrink-0 ${cfg.cls}`}>{cfg.label}</span>
-                          </div>
-                          <p className="text-xs text-slate-400">{formatFecha(h.fecha)} · {h.hora} hs</p>
-                        </div>
+                    {panelPaciente.dni && (
+                      <div className="flex items-center gap-2 text-xs text-slate-600">
+                        <User size={12} className="text-slate-400 shrink-0" />DNI {panelPaciente.dni}
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
                 </div>
+
+                {/* Estadísticas (si cargó el detalle) */}
+                {detalle && (
+                  <div className="px-5 py-4 border-b border-slate-100">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Estadísticas</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { label: "Total turnos", val: turnos.length, icon: Calendar },
+                        { label: "Asistencia",   val: tasaAsistencia(turnos), icon: TrendingUp },
+                        { label: "Último turno", val: formatFecha(ultimoTurno), icon: Clock },
+                        { label: "Próximo turno", val: formatFecha(proximoTurno), icon: CalendarPlus },
+                      ].map(({ label, val, icon: Icon }) => (
+                        <div key={label} className="bg-slate-50 rounded-xl p-3">
+                          <Icon size={12} className="text-slate-400 mb-1" />
+                          <p className="text-xs font-bold text-slate-800">{val}</p>
+                          <p className="text-xs text-slate-400">{label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Historial */}
+                {detalle && turnos.length > 0 && (
+                  <div className="px-5 py-4">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Historial de turnos</p>
+                    <div className="space-y-2">
+                      {turnos.map((t) => {
+                        const cfg = ESTADO_CFG[t.estado] || ESTADO_CFG.CANCELADO;
+                        return (
+                          <div key={t.id} className="flex items-start gap-2.5 py-2 border-b border-slate-100 last:border-0">
+                            <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${cfg.dot}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs font-semibold text-slate-700 truncate">{t.notas || "Sin notas"}</p>
+                                <span className={`text-xs font-semibold shrink-0 ${cfg.cls}`}>{cfg.label}</span>
+                              </div>
+                              <p className="text-xs text-slate-400">{formatFecha(t.fecha)} · {t.horaInicio}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             {/* Acciones */}
             <div className="px-5 py-4 border-t border-slate-100 space-y-2">
@@ -391,33 +352,33 @@ export default function PacientesPage() {
 
             <div className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: "Nombre", ph: "Ej: Lucas", req: true },
-                  { label: "Apellido", ph: "Ej: Ramírez", req: true },
-                ].map(f => (
-                  <div key={f.label}>
-                    <label className="text-xs font-semibold text-slate-600 block mb-1.5">
-                      {f.label} {f.req && <span className="text-emerald-500">*</span>}
-                    </label>
-                    <input type="text" placeholder={f.ph}
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all" />
-                  </div>
-                ))}
-              </div>
-              {[
-                { label: "Email", type: "email", ph: "paciente@email.com", req: true },
-                { label: "Teléfono", type: "tel", ph: "+54 9 11 12345678", req: true },
-                { label: "DNI", type: "number", ph: "12345678", req: false },
-                { label: "Obra social", type: "text", ph: "Ej: OSDE", req: false },
-              ].map(f => (
-                <div key={f.label}>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">
-                    {f.label} {f.req ? <span className="text-emerald-500">*</span> : <span className="text-slate-400 font-normal">— opcional</span>}
-                  </label>
-                  <input type={f.type} placeholder={f.ph}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all" />
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">Nombre <span className="text-emerald-500">*</span></label>
+                  <input type="text" value={form.nombre} onChange={e => setForm(f => ({...f, nombre: e.target.value}))} placeholder="Ej: Lucas" className={inputCls} />
                 </div>
-              ))}
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">Apellido <span className="text-emerald-500">*</span></label>
+                  <input type="text" value={form.apellido} onChange={e => setForm(f => ({...f, apellido: e.target.value}))} placeholder="Ej: Ramírez" className={inputCls} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1.5">Email <span className="text-emerald-500">*</span></label>
+                <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} placeholder="paciente@email.com" className={inputCls} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1.5">Teléfono <span className="text-emerald-500">*</span></label>
+                <input type="tel" value={form.telefono} onChange={e => setForm(f => ({...f, telefono: e.target.value}))} placeholder="+54 9 11 12345678" className={inputCls} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">DNI <span className="text-slate-400 font-normal">— opcional</span></label>
+                  <input type="number" value={form.dni} onChange={e => setForm(f => ({...f, dni: e.target.value}))} placeholder="12345678" className={inputCls} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">Obra social <span className="text-slate-400 font-normal">— opcional</span></label>
+                  <input type="text" value={form.obraSocial} onChange={e => setForm(f => ({...f, obraSocial: e.target.value}))} placeholder="Ej: OSDE" className={inputCls} />
+                </div>
+              </div>
             </div>
 
             <div className="px-6 pb-5 flex gap-2">
@@ -425,9 +386,9 @@ export default function PacientesPage() {
                 className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
                 Cancelar
               </button>
-              <button onClick={() => setModalAgregar(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors">
-                Guardar paciente
+              <button onClick={guardarPaciente} disabled={guardando}
+                className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors disabled:opacity-60">
+                {guardando ? "Guardando..." : "Guardar paciente"}
               </button>
             </div>
           </div>

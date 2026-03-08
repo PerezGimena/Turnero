@@ -3,6 +3,7 @@ const {
   Paciente,
   Profesional,
   ConfiguracionDia,
+  ConfiguracionRecordatorios,
   Pago,
 } = require("../models");
 const { Op } = require("sequelize");
@@ -227,7 +228,36 @@ const getPacienteById = async (req, res, next) => {
   }
 };
 
-// --- PERFIL ---
+const crearPaciente = async (req, res, next) => {
+  try {
+    const profesionalId = req.user.sub;
+    const { nombre, apellido, email, telefono, dni, obraSocial, tieneObraSocial } = req.body;
+
+    if (!nombre || !apellido || !email || !telefono) {
+      return res.status(400).json({ ok: false, message: 'Nombre, apellido, email y teléfono son obligatorios' });
+    }
+
+    const existente = await Paciente.findOne({ where: { profesionalId, email } });
+    if (existente) {
+      return res.status(409).json({ ok: false, message: 'Ya existe un paciente con ese email' });
+    }
+
+    const nuevoPaciente = await Paciente.create({
+      profesionalId,
+      nombre,
+      apellido,
+      email,
+      telefono,
+      dni: dni || null,
+      obraSocial: obraSocial || null,
+      tieneObraSocial: tieneObraSocial ?? !!obraSocial,
+    });
+
+    res.status(201).json({ ok: true, data: nuevoPaciente, message: 'Paciente creado exitosamente' });
+  } catch (error) {
+    next(error);
+  }
+};
 
 const getPerfil = async (req, res, next) => {
   try {
@@ -392,6 +422,92 @@ const enviarRecordatorioPrueba = async (req, res, next) => {
   }
 };
 
+// --- RECORDATORIOS CONFIG ---
+
+const getConfigRecordatorios = async (req, res, next) => {
+  try {
+    const profesionalId = req.user.sub;
+    let config = await ConfiguracionRecordatorios.findOne({ where: { profesionalId } });
+
+    if (!config) {
+      // Crear config por defecto si no existe
+      config = await ConfiguracionRecordatorios.create({
+        profesionalId,
+        emailHabilitado: true,
+        recordatorio1Habilitado: true,
+        recordatorio1HorasAntes: 24,
+      });
+    }
+
+    res.json({ ok: true, data: config });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateConfigRecordatorios = async (req, res, next) => {
+  try {
+    const profesionalId = req.user.sub;
+    const updates = { ...req.body };
+
+    // Campos protegidos
+    delete updates.id;
+    delete updates.profesionalId;
+    delete updates.createdAt;
+    delete updates.updatedAt;
+
+    let config = await ConfiguracionRecordatorios.findOne({ where: { profesionalId } });
+
+    if (!config) {
+      config = await ConfiguracionRecordatorios.create({ profesionalId, ...updates });
+    } else {
+      await config.update(updates);
+    }
+
+    res.json({ ok: true, data: config, message: 'Configuración de recordatorios actualizada' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// --- PAGOS ---
+
+const getPagos = async (req, res, next) => {
+  try {
+    const profesionalId = req.user.sub;
+    const { pagina = 1, porPagina = 20 } = req.query;
+    const limit = parseInt(porPagina);
+    const offset = (parseInt(pagina) - 1) * limit;
+
+    const { count, rows } = await Pago.findAndCountAll({
+      where: { profesionalId },
+      limit,
+      offset,
+      order: [['createdAt', 'DESC']],
+      include: [
+        {
+          model: Turno,
+          as: 'turno',
+          include: [{ model: Paciente, as: 'paciente', attributes: ['id', 'nombre', 'apellido', 'email'] }]
+        }
+      ]
+    });
+
+    res.json({
+      ok: true,
+      data: rows,
+      pagination: {
+        total: count,
+        pagina: parseInt(pagina),
+        porPagina: limit,
+        totalPaginas: Math.ceil(count / limit)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getTurnos,
   getTurnoById,
@@ -400,8 +516,12 @@ module.exports = {
   rechazarTurno,
   getPacientes,
   getPacienteById,
+  crearPaciente,
   getPerfil,
   updatePerfil,
   getMetricasDashboard,
   enviarRecordatorioPrueba,
+  getConfigRecordatorios,
+  updateConfigRecordatorios,
+  getPagos,
 };

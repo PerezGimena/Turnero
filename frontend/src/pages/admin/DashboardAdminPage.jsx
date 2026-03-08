@@ -1,18 +1,11 @@
 import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import useAuthStore from "../../store/useAuthStore";
 import {
   Users, BarChart2, Calendar, DollarSign, UserPlus, CreditCard,
   TrendingUp, TrendingDown, Activity, ChevronRight, Wifi, Bell,
 } from "lucide-react";
-
-// ── Mock data ─────────────────────────────────────────────────────────────────
-const metricas = [
-  { label: "Profesionales activos", valor: "234",     sub: "+8 este mes",          trend: "up",   icon: Users,       color: "violet" },
-  { label: "Turnos este mes",        valor: "12.847",  sub: "+23% vs anterior",     trend: "up",   icon: Calendar,    color: "blue" },
-  { label: "Tasa de asistencia",     valor: "87.3%",   sub: "-0.4% vs anterior",    trend: "down", icon: Activity,    color: "emerald" },
-  { label: "Ingresos del mes",       valor: "$94.200", sub: "ARS · comisiones",     trend: "up",   icon: DollarSign,  color: "amber" },
-  { label: "Nuevos registros",       valor: "12",      sub: "Esta semana",          trend: "up",   icon: UserPlus,    color: "teal" },
-  { label: "Planes activos",         valor: "198",     sub: "De 234 profesionales", trend: null,   icon: CreditCard,  color: "indigo" },
-];
 
 const graficoDatos = [
   { mes: "Sep", turnos: 8420  },
@@ -32,9 +25,16 @@ const ultimosProfesionales = [
 ];
 
 const alertas = [
-  { tipo: "pago",        msg: "3 profesionales con pagos fallidos",             icon: CreditCard, color: "red" },
-  { tipo: "integracion", msg: "WhatsApp API desconectada para 2 cuentas",       icon: Wifi,       color: "amber" },
-  { tipo: "recordatorio",msg: "5 errores en envío de recordatorios ayer",       icon: Bell,       color: "orange" },
+  { tipo: "integracion", msg: "Revisad el estado de las integraciones", icon: Wifi, color: "amber" },
+];
+
+const METRICAS_BASE = [
+  { label: "Profesionales activos", key: "totalProfesionales", sub: "Total registrados",     trend: "up",   icon: Users,       color: "violet", defaultVal: "—" },
+  { label: "Turnos registrados",     key: "totalTurnos",        sub: "Total histórico",        trend: "up",   icon: Calendar,    color: "blue",   defaultVal: "—" },
+  { label: "Tasa de asistencia",     key: "tasaAsistencia",     sub: "Completados ÷ finalizados",trend: null,  icon: Activity,    color: "emerald",defaultVal: "—", fmt: v => `${v}%` },
+  { label: "Ingresos del mes",       key: null,                 sub: "ARS · comisiones",       trend: "up",   icon: DollarSign,  color: "amber",  defaultVal: "N/D" },
+  { label: "Nuevos registros",       key: null,                 sub: "Esta semana",             trend: "up",   icon: UserPlus,    color: "teal",   defaultVal: "N/D" },
+  { label: "Planes activos",         key: null,                 sub: "Profesionales con plan",  trend: null,   icon: CreditCard,  color: "indigo", defaultVal: "N/D" },
 ];
 
 const COLOR_CFG = {
@@ -91,6 +91,35 @@ function GraficoLinea({ datos }) {
 // ── Dashboard (sin AdminLayout propio, el layout viene de las rutas) ──────────
 export default function DashboardAdminPage() {
   const navigate = useNavigate();
+  const { token } = useAuthStore();
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const [apiMetricas, setApiMetricas] = useState({});
+  const [ultimosProfesionales, setUltimosProfesionales] = useState([]);
+
+  useEffect(() => {
+    axios.get('http://localhost:3001/api/admin/dashboard/metricas', { headers })
+      .then(({ data }) => setApiMetricas(data.data || {}))
+      .catch(console.error);
+
+    axios.get('http://localhost:3001/api/admin/profesionales?porPagina=5', { headers })
+      .then(({ data }) => setUltimosProfesionales((data.data || []).map(p => ({
+        ...p,
+        nombre: `${p.nombre} ${p.apellido}`,
+        plan: p.planActivo ? 'Pro' : 'Básico',
+        estado: p.planActivo ? 'Activo' : 'Inactivo',
+        registro: p.createdAt,
+        turnosMes: 0,
+      }))))
+      .catch(console.error);
+  }, [token]);
+
+  const metricas = METRICAS_BASE.map(m => ({
+    ...m,
+    valor: m.key && apiMetricas[m.key] !== undefined
+      ? (m.fmt ? m.fmt(apiMetricas[m.key]) : String(apiMetricas[m.key]))
+      : m.defaultVal,
+  }));
 
   return (
     <div className="p-6 space-y-6">

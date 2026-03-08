@@ -128,6 +128,45 @@ const updateEstadoProfesional = async (req, res, next) => {
   }
 };
 
+// PUT /api/admin/profesionales/:id
+const updateProfesional = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { nombre, apellido, email, slug, especialidad, password } = req.body;
+
+    const profesional = await Profesional.findByPk(id);
+    if (!profesional) {
+      return res.status(404).json({ ok: false, error: 'PROFESIONAL_NO_ENCONTRADO' });
+    }
+
+    if (email && email !== profesional.email) {
+      const existeEmail = await Profesional.findOne({ where: { email } });
+      if (existeEmail) return res.status(409).json({ ok: false, message: 'El email ya está en uso' });
+    }
+    if (slug && slug !== profesional.slug) {
+      const existeSlug = await Profesional.findOne({ where: { slug } });
+      if (existeSlug) return res.status(409).json({ ok: false, message: 'El slug ya está en uso' });
+    }
+
+    const updates = {};
+    if (nombre) updates.nombre = nombre;
+    if (apellido) updates.apellido = apellido;
+    if (email) updates.email = email;
+    if (slug) updates.slug = slug;
+    if (especialidad !== undefined) updates.especialidad = especialidad;
+    if (password) updates.passwordHash = await bcrypt.hash(password, 10);
+
+    await profesional.update(updates);
+
+    const data = profesional.toJSON();
+    delete data.passwordHash;
+
+    res.json({ ok: true, data, message: 'Profesional actualizado' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // DELETE /api/admin/profesionales/:id
 const deleteProfesional = async (req, res, next) => {
   try {
@@ -222,6 +261,7 @@ const impersonarProfesional = async (req, res, next) => {
 module.exports = {
   getProfesionales,
   createProfesional,
+  updateProfesional,
   updateEstadoProfesional,
   deleteProfesional,
   getMetricasGlobales,

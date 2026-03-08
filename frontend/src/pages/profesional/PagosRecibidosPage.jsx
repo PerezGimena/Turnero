@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Calendar, 
   Search, 
@@ -9,20 +9,51 @@ import {
   RotateCcw, 
   MoreVertical,
   ChevronRight,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
+
+import axios from 'axios';
+import useAuthStore from '../../store/useAuthStore';
 
 const PagosRecibidos = () => {
   const brand = { DEFAULT: '#10B981', dark: '#059669', light: '#ECFDF5' };
-  
-  const [filtroEstado, setFiltroEstado] = useState('Todos');
-  const [selectedPago, setSelectedPago] = useState(null); // Para el Drawer
 
-  const pagos = [
-    { id: 'TR-9821', fecha: '28/02/2026', paciente: 'Laura González', monto: 5000, moneda: 'ARS', pasarela: 'MercadoPago', estado: 'Aprobado', turno: '28 Feb - 10:30' },
-    { id: 'TR-9819', fecha: '27/02/2026', paciente: 'Marcos Peña', monto: 5000, moneda: 'ARS', pasarela: 'Stripe', estado: 'Pendiente', turno: '02 Mar - 16:00' },
-    { id: 'TR-9780', fecha: '25/02/2026', paciente: 'Ana Luz', monto: 4500, moneda: 'ARS', pasarela: 'MercadoPago', estado: 'Reembolsado', turno: '24 Feb - 09:00' },
-  ];
+  const { token } = useAuthStore();
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const [filtroEstado, setFiltroEstado] = useState('Todos');
+  const [selectedPago, setSelectedPago] = useState(null);
+  const [pagos, setPagos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    axios.get('http://localhost:3001/api/profesional/pagos?pagina=1&porPagina=100', { headers })
+      .then(({ data }) => {
+        const filas = (data.data?.pagos || []).map(p => ({
+          id: p.id,
+          fecha: new Date(p.createdAt).toLocaleDateString('es-AR'),
+          paciente: p.turno?.paciente ? `${p.turno.paciente.nombre} ${p.turno.paciente.apellido}` : '-',
+          monto: parseFloat(p.monto),
+          moneda: 'ARS',
+          pasarela: p.metodoPago || 'MercadoPago',
+          estado: p.estado === 'completado' ? 'Aprobado' : p.estado === 'reembolsado' ? 'Reembolsado' : 'Pendiente',
+          turno: p.turno ? `${new Date(p.turno.fecha).toLocaleDateString('es-AR')} - ${(p.turno.horaInicio || '').slice(0,5)}` : '-',
+          createdAt: p.createdAt,
+        }));
+        setPagos(filas);
+      })
+      .catch(console.error)
+      .finally(() => setCargando(false));
+  }, [token]);
+
+  // Métricas calculadas
+  const mesActual = new Date().getMonth();
+  const pagosEsteMes = pagos.filter(p => new Date(p.createdAt).getMonth() === mesActual);
+  const totalMes = pagosEsteMes.reduce((s, p) => s + p.monto, 0);
+  const pagosPendientes = pagos.filter(p => p.estado === 'Pendiente');
+  const totalPendiente = pagosPendientes.reduce((s, p) => s + p.monto, 0);
+  const totalAcumulado = pagos.filter(p => p.estado === 'Aprobado').reduce((s, p) => s + p.monto, 0);
 
   const getStatusBadge = (estado) => {
     const styles = {
@@ -49,17 +80,17 @@ const PagosRecibidos = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Este mes</p>
-          <p className="text-2xl font-black" style={{ color: brand.DEFAULT }}>$47.500 ARS</p>
-          <p className="text-xs text-gray-500 mt-1">19 pagos recibidos</p>
+          <p className="text-2xl font-black" style={{ color: brand.DEFAULT }}>${totalMes.toLocaleString('es-AR')} ARS</p>
+          <p className="text-xs text-gray-500 mt-1">{pagosEsteMes.length} pagos recibidos</p>
         </div>
         <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Pendiente</p>
-          <p className="text-2xl font-black text-amber-500">$6.000 ARS</p>
-          <p className="text-xs text-gray-500 mt-1">3 turnos por confirmar pago</p>
+          <p className="text-2xl font-black text-amber-500">${totalPendiente.toLocaleString('es-AR')} ARS</p>
+          <p className="text-xs text-gray-500 mt-1">{pagosPendientes.length} turnos por confirmar pago</p>
         </div>
         <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm border-b-4" style={{ borderBottomColor: brand.DEFAULT }}>
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total acumulado</p>
-          <p className="text-2xl font-black text-gray-800">$284.000 ARS</p>
+          <p className="text-2xl font-black text-gray-800">${totalAcumulado.toLocaleString('es-AR')} ARS</p>
           <p className="text-xs text-gray-500 mt-1">Desde el inicio</p>
         </div>
       </div>
@@ -99,7 +130,11 @@ const PagosRecibidos = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {pagos.map((pago) => (
+            {cargando ? (
+              <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-400">Cargando...</td></tr>
+            ) : pagos.filter(p => filtroEstado === 'Todos' || p.estado === filtroEstado).length === 0 ? (
+              <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-400">No hay pagos registrados</td></tr>
+            ) : pagos.filter(p => filtroEstado === 'Todos' || p.estado === filtroEstado).map((pago) => (
               <tr 
                 key={pago.id} 
                 onClick={() => setSelectedPago(pago)}

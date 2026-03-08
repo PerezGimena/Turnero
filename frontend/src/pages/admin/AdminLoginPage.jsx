@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, ShieldCheck, Lock } from 'lucide-react'
+import axios from 'axios'
 import useAuthStore from '../../store/useAuthStore.jsx'
 
 // Esquema de validación estricto para admin
@@ -30,32 +31,17 @@ export default function AdminLoginPage() {
   const procesarLogin = async (data) => {
     setCargando(true)
     setErrorGlobal('')
-    
-    // Simulación de autenticación segura
-    setTimeout(() => {
-      // En un caso real, validaríamos contra el backend
-      if (data.email === 'admin@turnosalud.com') { // Simulación simple
-         login({
-          id: 'admin-master',
-          nombre: 'Administrador SaaS',
-          email: data.email,
-          rol: 'admin',
-        }, 'token-admin-seguro-123')
-        
-        navigate('/admin/dashboard')
-      } else {
-        // Permitimos login genérico para pruebas si no es el específico, 
-        // o podríamos rechazarlo. Por ahora, para facilitar el desarrollo:
-        login({
-            id: 'admin-gen',
-            nombre: 'Admin User',
-            email: data.email,
-            rol: 'admin',
-        }, 'token-admin-gen-123')
+    try {
+      const response = await axios.post('http://localhost:3001/api/auth/admin/login', data)
+      if (response.data.ok) {
+        login(response.data.data.usuario, response.data.data.token)
         navigate('/admin/dashboard')
       }
+    } catch (err) {
+      setErrorGlobal(err.response?.data?.message || 'Credenciales incorrectas')
+    } finally {
       setCargando(false)
-    }, 1500)
+    }
   }
 
   return (

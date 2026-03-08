@@ -1,4 +1,4 @@
-const { Profesional, ConfiguracionDia, Paciente } = require("../models");
+const { Profesional, ConfiguracionDia, Paciente, Turno } = require("../models");
 const disponibilidadService = require("../services/disponibilidad.service");
 const turnoService = require("../services/turno.service");
 
@@ -140,4 +140,70 @@ module.exports = {
   getPerfilProfesional,
   getSlotsDisponibles,
   crearReserva,
+  getTurno,
+  cancelarTurnoPublico,
+  reprogramarTurnoPublico,
 };
+
+// GET /api/publico/:slug/turno/:id
+async function getTurno(req, res, next) {
+  try {
+    const { slug, id } = req.params;
+    const profesional = await Profesional.findOne({ where: { slug } });
+    if (!profesional) return res.status(404).json({ ok: false, error: "PROFESIONAL_NO_ENCONTRADO" });
+
+    const turno = await Turno.findOne({
+      where: { id, profesionalId: profesional.id },
+      include: [{ model: Paciente, as: "paciente", attributes: ["nombre", "apellido", "email", "telefono"] }],
+    });
+    if (!turno) return res.status(404).json({ ok: false, error: "TURNO_NO_ENCONTRADO" });
+
+    res.json({ ok: true, data: { ...turno.toJSON(), profesional: { nombre: `${profesional.nombre} ${profesional.apellido}`, especialidad: profesional.especialidad, modalidad: profesional.modalidad, direccion: profesional.direccion, duracionTurno: profesional.duracionTurno, permiteReprogramar: true, horasMinCancelacion: profesional.horasMinCancelacion || 24 } } });
+  } catch (error) { next(error); }
+}
+
+// PATCH /api/publico/:slug/turno/:id/cancelar
+async function cancelarTurnoPublico(req, res, next) {
+  try {
+    const { slug, id } = req.params;
+    const { motivo } = req.body;
+    const profesional = await Profesional.findOne({ where: { slug } });
+    if (!profesional) return res.status(404).json({ ok: false, error: "PROFESIONAL_NO_ENCONTRADO" });
+
+    const turno = await Turno.findOne({ where: { id, profesionalId: profesional.id } });
+    if (!turno) return res.status(404).json({ ok: false, error: "TURNO_NO_ENCONTRADO" });
+    if (turno.estado === "cancelado") return res.status(400).json({ ok: false, error: "TURNO_YA_CANCELADO" });
+
+    await turno.update({ estado: "cancelado", motivoCancelacion: motivo || null });
+    res.json({ ok: true, data: turno });
+  } catch (error) { next(error); }
+}
+
+// PATCH /api/publico/:slug/turno/:id/reprogramar
+async function reprogramarTurnoPublico(req, res, next) {
+  try {
+    const { slug, id } = req.params;
+    const { fecha, horaInicio } = req.body;
+    if (!fecha || !horaInicio) return res.status(400).json({ ok: false, error: "FALTAN_DATOS" });
+
+    const profesional = await Profesional.findOne({ where: { slug } });
+    if (!profesional) return res.status(404).json({ ok: false, error: "PROFESIONAL_NO_ENCONTRADO" });
+
+    const turno = await Turno.findOne({ where: { id, profesionalId: profesional.id } });
+    if (!turno) return res.status(404).json({ ok: false, error: "TURNO_NO_ENCONTRADO" });
+    if (turno.estado === "cancelado") return res.status(400).json({ ok: false, error: "TURNO_CANCELADO" });
+
+    // Verificar disponibilidad del nuevo slot
+    const slots = await disponibilidadService.calcularSlotsDisponibles(profesional.id, fecha);
+    const slot = slots.find(s => s.hora === horaInicio);
+    if (!slot || !slot.disponible) return res.status(409).json({ ok: false, error: "SLOT_NO_DISPONIBLE" });
+
+    const [h, m] = horaInicio.split(":").map(Number);
+    const dateCalc = new Date(2000, 0, 1, h, m);
+    dateCalc.setMinutes(dateCalc.getMinutes() + profesional.duracionTurno);
+    const horaFin = `${dateCalc.getHours().toString().padStart(2, "0")}:${dateCalc.getMinutes().toString().padStart(2, "0")}`;
+
+    await turno.update({ fecha, horaInicio, horaFin });
+    res.json({ ok: true, data: turno });
+  } catch (error) { next(error); }
+}

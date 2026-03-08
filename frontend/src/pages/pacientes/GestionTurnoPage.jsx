@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
 import {
   Calendar,
   Clock,
@@ -18,39 +19,6 @@ import {
   XCircle,
   ArrowLeft,
 } from "lucide-react";
-
-// ── Mock ──────────────────────────────────────────────────────────────────────
-const turnoMock = {
-  id: "abc123",
-  estado: "CONFIRMADO", // "CONFIRMADO" | "PENDIENTE" | "CANCELADO"
-  fecha: "2026-03-11",
-  hora: "09:00",
-  profesional: {
-    nombre: "Martín García",
-    especialidad: "Médico Clínico",
-    modalidad: "Presencial",
-    direccion: "Av. Corrientes 1234, CABA",
-    duracionTurno: 30,
-    permiteReprogramar: true,
-    horasMinCancelacion: 24,
-  },
-  paciente: {
-    nombre: "Lucas Ramírez",
-    email: "lucas@email.com",
-    telefono: "+54 9 11 12345678",
-  },
-  motivoCancelacion: null,
-  fechaCancelacion: null,
-};
-
-// Disponibilidad para reprogramar
-const disponibilidadMock = {
-  "2026-03-17": ["09:00", "09:30", "10:00", "10:30"],
-  "2026-03-18": ["14:00", "14:30", "15:00"],
-  "2026-03-19": ["09:00", "10:00", "11:00"],
-  "2026-03-24": ["09:30", "10:00", "10:30"],
-  "2026-03-25": ["14:00", "15:30", "16:00"],
-};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const DIAS = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"];
@@ -146,15 +114,12 @@ function MiniCalendario({ fechaSeleccionada, onSelect }) {
           if (!day) return <div key={`e-${i}`} />;
           const key = toKey(vy, vm, day);
           const isPast = key < todayKey;
-          const tiene = !!disponibilidadMock[key];
           const selected = key === fechaSeleccionada;
-          const disabled = isPast || !tiene;
           return (
-            <button key={key} disabled={disabled} onClick={() => onSelect(key)}
+            <button key={key} disabled={isPast} onClick={() => onSelect(key)}
               className={`mx-auto w-8 h-8 rounded-lg text-xs font-medium flex items-center justify-center transition-all
-                ${selected ? "bg-blue-600 text-white" : disabled ? "text-gray-300 cursor-not-allowed" : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"}`}>
+                ${selected ? "bg-blue-600 text-white" : isPast ? "text-gray-300 cursor-not-allowed" : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"}`}>
               {day}
-              {tiene && !disabled && !selected && <span className="sr-only">disponible</span>}
             </button>
           );
         })}
@@ -181,37 +146,85 @@ export default function GestionTurnoPage() {
   const { slug, id } = useParams();
   const navigate = useNavigate();
 
-  const [turno, setTurno] = useState(turnoMock);
+  const [turno, setTurno] = useState(null);
+  const [cargando, setCargando] = useState(true);
   const [modalCancelar, setModalCancelar] = useState(false);
   const [modalReprogramar, setModalReprogramar] = useState(false);
   const [motivoCancelacion, setMotivoCancelacion] = useState("");
   const [nuevaFecha, setNuevaFecha] = useState(null);
   const [nuevoHorario, setNuevoHorario] = useState(null);
+  const [horariosDisponibles, setHorariosDisponibles] = useState([]);
+  const [cargandoHorarios, setCargandoHorarios] = useState(false);
   const [procesando, setProcesando] = useState(false);
 
-  const horas = horasHastaFecha(turno.fecha, turno.hora);
-  const cancelacionTardia = horas < turno.profesional.horasMinCancelacion && horas > 0;
+  useEffect(() => {
+    axios.get(`http://localhost:3001/api/publico/${slug}/turno/${id}`)
+      .then(({ data }) => {
+        const d = data.data;
+        // Normalizar estado a mayúsculas para compatibilidad con BadgeEstado
+        setTurno({ ...d, estado: d.estado.toUpperCase(), hora: d.horaInicio });
+      })
+      .catch(console.error)
+      .finally(() => setCargando(false));
+  }, [slug, id]);
+
+  useEffect(() => {
+    if (!nuevaFecha) { setHorariosDisponibles([]); return; }
+    setCargandoHorarios(true);
+    axios.get(`http://localhost:3001/api/publico/${slug}/horarios?fecha=${nuevaFecha}`)
+      .then(({ data }) => setHorariosDisponibles((data.data || []).filter(s => s.disponible).map(s => s.hora)))
+      .catch(console.error)
+      .finally(() => setCargandoHorarios(false));
+  }, [nuevaFecha]);
+
+  const horas = turno ? horasHastaFecha(turno.fecha, turno.hora) : 999;
+  const cancelacionTardia = turno ? (horas < (turno.profesional?.horasMinCancelacion ?? 24) && horas > 0) : false;
 
   async function confirmarCancelacion() {
     setProcesando(true);
-    await new Promise(r => setTimeout(r, 1000));
-    setTurno(t => ({ ...t, estado: "CANCELADO", motivoCancelacion, fechaCancelacion: new Date().toISOString() }));
-    setProcesando(false);
-    setModalCancelar(false);
+    try {
+      await axios.patch(`http://localhost:3001/api/publico/${slug}/turno/${id}/cancelar`, { motivo: motivoCancelacion });
+      setTurno(t => ({ ...t, estado: "CANCELADO", motivoCancelacion, fechaCancelacion: new Date().toISOString() }));
+      setModalCancelar(false);
+    } catch (e) { console.error(e); }
+    finally { setProcesando(false); }
   }
 
   async function confirmarReprogramacion() {
     if (!nuevaFecha || !nuevoHorario) return;
     setProcesando(true);
-    await new Promise(r => setTimeout(r, 1000));
-    setTurno(t => ({ ...t, fecha: nuevaFecha, hora: nuevoHorario }));
-    setProcesando(false);
-    setModalReprogramar(false);
-    setNuevaFecha(null);
-    setNuevoHorario(null);
+    try {
+      await axios.patch(`http://localhost:3001/api/publico/${slug}/turno/${id}/reprogramar`, { fecha: nuevaFecha, horaInicio: nuevoHorario });
+      setTurno(t => ({ ...t, fecha: nuevaFecha, hora: nuevoHorario }));
+      setModalReprogramar(false);
+      setNuevaFecha(null);
+      setNuevoHorario(null);
+    } catch (e) { console.error(e); }
+    finally { setProcesando(false); }
   }
 
-  const horariosNuevaFecha = nuevaFecha ? (disponibilidadMock[nuevaFecha] || []) : [];
+  if (cargando) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center text-gray-400">
+          <RefreshCw size={24} className="animate-spin mx-auto mb-2" />
+          <p className="text-sm">Cargando turno...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!turno) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center text-gray-400">
+          <AlertTriangle size={24} className="mx-auto mb-2 text-amber-400" />
+          <p className="text-sm font-semibold text-gray-700">Turno no encontrado</p>
+          <button onClick={() => navigate(`/${slug}`)} className="mt-4 text-sm text-blue-600 hover:underline">Volver al inicio</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif" }}>
@@ -417,11 +430,13 @@ export default function GestionTurnoPage() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                   Horarios disponibles
                 </p>
-                {horariosNuevaFecha.length === 0 ? (
+                {cargandoHorarios ? (
+                  <p className="text-xs text-gray-400 text-center py-3">Cargando horarios...</p>
+                ) : horariosDisponibles.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-3">No hay horarios para este día</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    {horariosNuevaFecha.map(h => (
+                    {horariosDisponibles.map(h => (
                       <button key={h} onClick={() => setNuevoHorario(h)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all
                           ${nuevoHorario === h ? "bg-blue-600 text-white border-blue-600" : "border-gray-200 text-gray-700 hover:border-blue-300 hover:text-blue-600"}`}>
