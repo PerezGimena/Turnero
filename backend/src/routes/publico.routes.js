@@ -28,6 +28,11 @@ router.post('/:slug/reservar', validate(reservaSchema), publicoController.crearR
 router.get('/:slug/turno/:id', publicoController.getTurno);
 router.patch('/:slug/turno/:id/cancelar', publicoController.cancelarTurnoPublico);
 router.patch('/:slug/turno/:id/reprogramar', publicoController.reprogramarTurnoPublico);
-// TODO: Agregar rateLimiter agresivo definido en prompt
+
+// Flujo de pago MercadoPago (Checkout Pro)
+// POST /:slug/pago/preferencia → crea preferencia MP y retorna { preferenceId, initPoint }
+router.post('/:slug/pago/preferencia', publicoController.crearPreferenciaPago);
+// POST /:slug/pago/verificar   → verifica pago luego del back_url de MP
+router.post('/:slug/pago/verificar', publicoController.verificarPago);
 
 module.exports = router;

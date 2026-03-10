@@ -35,4 +35,8 @@ router.post('/profesionales/:id/impersonar', adminController.impersonarProfesion
 // Dashboard
 router.get('/dashboard/metricas', adminController.getMetricasGlobales);
 
+// Integraciones de pago (OAuth credentials)
+router.get('/integraciones', adminController.getIntegraciones);
+router.put('/integraciones', adminController.saveIntegraciones);
+
 module.exports = router;

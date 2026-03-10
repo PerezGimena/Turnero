@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const profesionalController = require('../controllers/profesional.controller');
 const recordatorioController = require('../controllers/recordatorio.controller');
+const pagoController = require('../controllers/pago.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
 const { uploadFotoPerfil } = require('../middlewares/upload.middleware');
 const validate = require('../middlewares/validate.middleware');
@@ -61,6 +62,7 @@ router.patch('/turnos/:id/reprogramar', profesionalController.reprogramarTurno);
 router.get('/pacientes', profesionalController.getPacientes);
 router.get('/pacientes/:id', profesionalController.getPacienteById);
 router.post('/pacientes', validate(pacienteManualSchema), profesionalController.crearPacienteManual);
+router.post('/pacientes/:id/mensaje', profesionalController.enviarMensajePaciente);
 
 // --- DASHBOARD ---
 router.get('/dashboard/metricas', profesionalController.getMetricasDashboard);
@@ -96,12 +98,22 @@ router.post('/perfil/foto', uploadFotoPerfil, async (req, res, next) => {
 });
 
 // --- RECORDATORIOS ---
-router.get('/recordatorios', recordatorioController.getRecordatorios);
-router.put('/recordatorios', recordatorioController.updateRecordatorios);
+router.get('/recordatorios/config', recordatorioController.getRecordatorios);
+router.put('/recordatorios/config', recordatorioController.updateRecordatorios);
 router.post('/recordatorios/prueba', recordatorioController.enviarPrueba);
+
+// --- PAGOS ---
+router.get('/pagos', pagoController.getPagos);
 
 // --- PAGOS CONFIG ---
 router.get('/pagos-config', profesionalController.getPerfil);
 router.put('/pagos-config', profesionalController.updatePerfil);
+
+// --- CREDENCIALES PAGO ---
+router.get('/pagos-credenciales', profesionalController.getEstadoCredencialesPago);
+router.post('/pagos-credenciales', profesionalController.guardarCredencialesPago);
+router.delete('/pagos-credenciales', profesionalController.desconectarPasarela);
+router.get('/pagos-credenciales/mp-oauth-url', profesionalController.getMpOAuthUrl);
+router.get('/pagos-credenciales/stripe-oauth-url', profesionalController.getStripeOAuthUrl);
 
 module.exports = router;

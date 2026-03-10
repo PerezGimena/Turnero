@@ -23,6 +23,7 @@ export {default as PerfilPublicoPage} from './profesional/PerfilPublicoPage.jsx'
 export {default as AdminLoginPage} from './admin/AdminLoginPage.jsx'
 export {default as DashboardAdminPage} from './admin/DashboardAdminPage.jsx'
 export {default as GestionProfesionalesPage} from './admin/GestionProfesionalesPage.jsx'
+export {default as IntegracionesAdminPage} from './admin/IntegracionesAdminPage.jsx'
 
 // Not Found
-export const NotFoundPage = () => <div>404 - Página no encontrada</div>
+export { default as NotFoundPage } from './NotFoundPage.jsx'

@@ -19,7 +19,37 @@ const ConfigPagosProfesional = () => {
   const [statusConexion, setStatusConexion] = useState('DESCONECTADO');
   const [reembolsoActivo, setReembolsoActivo] = useState(true);
 
+  // Estado de credenciales de pasarela
+  const [oauthDisponible, setOauthDisponible] = useState(null); // null = cargando
+  const [stripeOauthDisponible, setStripeOauthDisponible] = useState(null);
+  const [errorCredenciales, setErrorCredenciales] = useState(null);
+  const [conectando, setConectando] = useState(false);
+  const [desconectando, setDesconectando] = useState(false);
+  const [mpEmail, setMpEmail] = useState(null);
+  const [stripeEmail, setStripeEmail] = useState(null);
+
   useEffect(() => {
+    // Detectar callbacks OAuth
+    const urlParams = new URLSearchParams(window.location.search);
+    const mpConnected = urlParams.get('mp_connected');
+    const stripeConnected = urlParams.get('stripe_connected');
+
+    if (mpConnected === 'true') {
+      setStatusConexion('CONECTADO');
+      setPasarela('mercadopago');
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (mpConnected === 'error') {
+      setErrorCredenciales('No se pudo conectar con MercadoPago. Intentá nuevamente.');
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (stripeConnected === 'true') {
+      setStatusConexion('CONECTADO');
+      setPasarela('stripe');
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (stripeConnected === 'error') {
+      setErrorCredenciales('No se pudo conectar con Stripe. Intentá nuevamente.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
     axios.get('http://localhost:3001/api/profesional/perfil', { headers })
       .then(({ data }) => {
         const p = data.data;
@@ -28,7 +58,65 @@ const ConfigPagosProfesional = () => {
         if (p.moneda) setMoneda(p.moneda);
       })
       .catch(console.error);
+    // Cargar estado de credenciales
+    axios.get('http://localhost:3001/api/profesional/pagos-credenciales', { headers })
+      .then(({ data }) => {
+        if (data.ok) {
+          const connected = mpConnected === 'true' || stripeConnected === 'true';
+          setStatusConexion(connected ? 'CONECTADO' : data.data.statusConexion);
+          if (data.data.pasarela) setPasarela(data.data.pasarela);
+          setOauthDisponible(data.data.oauthDisponible ?? false);
+          setStripeOauthDisponible(data.data.stripeOauthDisponible ?? false);
+          setMpEmail(data.data.mpEmail || null);
+          setStripeEmail(data.data.stripeEmail || null);
+        }
+      })
+      .catch(console.error);
   }, [token]);
+
+  async function conectarMercadoPago() {
+    setConectando(true);
+    setErrorCredenciales(null);
+    try {
+      const { data } = await axios.get('http://localhost:3001/api/profesional/pagos-credenciales/mp-oauth-url', { headers });
+      if (data.ok && data.url) {
+        window.location.href = data.url;
+      }
+    } catch (e) {
+      setErrorCredenciales('No se pudo iniciar la conexión con MercadoPago.');
+      setConectando(false);
+    }
+  }
+
+  async function desconectarPasarela() {
+    if (!window.confirm('¿Desconectar la pasarela? Dejarás de poder recibir pagos hasta que vuelvas a conectarla.')) return;
+    setDesconectando(true);
+    setErrorCredenciales(null);
+    try {
+      await axios.delete('http://localhost:3001/api/profesional/pagos-credenciales', { headers });
+      setStatusConexion('DESCONECTADO');
+      setMpEmail(null);
+      setStripeEmail(null);
+    } catch (e) {
+      setErrorCredenciales('No se pudo desconectar la pasarela. Intentá nuevamente.');
+    } finally {
+      setDesconectando(false);
+    }
+  }
+
+  async function conectarStripe() {
+    setConectando(true);
+    setErrorCredenciales(null);
+    try {
+      const { data } = await axios.get('http://localhost:3001/api/profesional/pagos-credenciales/stripe-oauth-url', { headers });
+      if (data.ok && data.url) {
+        window.location.href = data.url;
+      }
+    } catch (e) {
+      setErrorCredenciales('No se pudo iniciar la conexión con Stripe.');
+      setConectando(false);
+    }
+  }
 
   async function guardar() {
     setGuardando(true);
@@ -149,31 +237,128 @@ const ConfigPagosProfesional = () => {
 
             <div className="space-y-4">
               {pasarela === 'mercadopago' ? (
-                <div>
-                  <label className="block text-sm font-medium mb-1">Access Token</label>
-                  <div className="flex gap-2">
-                    <input type="password" placeholder="APP_USR-..." className="flex-1 p-2 border border-gray-300 rounded focus:ring-1 outline-none" style={{ focusRingColor: brand.DEFAULT }} />
-                    <button className="px-4 py-2 rounded font-bold text-sm text-white transition-colors" style={{ backgroundColor: brand.DEFAULT }}>
-                      Validar credenciales
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Publishable Key</label>
-                    <input type="text" placeholder="pk_live_..." className="w-full p-2 border border-gray-300 rounded focus:ring-1 outline-none" style={{ focusRingColor: brand.DEFAULT }} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Secret Key</label>
-                    <div className="flex gap-2">
-                      <input type="password" placeholder="sk_live_..." className="flex-1 p-2 border border-gray-300 rounded focus:ring-1 outline-none" style={{ focusRingColor: brand.DEFAULT }} />
-                      <button className="px-4 py-2 rounded font-bold text-sm text-white" style={{ backgroundColor: brand.DEFAULT }}>
-                        Validar
+                <div className="py-2">
+                  {statusConexion === 'CONECTADO' ? (
+                    <div className="flex flex-col items-center gap-3 py-4 text-center">
+                      <div className="flex items-center gap-2 font-semibold" style={{ color: brand.DEFAULT }}>
+                        <Check size={18} /> Estado: Conectado
+                      </div>
+                      {mpEmail && (
+                        <p className="text-sm text-gray-500">
+                          Cuenta: <span className="font-medium text-gray-700">{mpEmail}</span>
+                        </p>
+                      )}
+                      <div className="flex gap-3 mt-1">
+                        <button
+                          onClick={conectarMercadoPago}
+                          disabled={conectando || desconectando}
+                          className="px-4 py-2 rounded-lg font-semibold text-sm border border-[#009EE3] text-[#009EE3] hover:bg-blue-50 transition-colors disabled:opacity-60"
+                        >
+                          Reconectar
+                        </button>
+                        <button
+                          onClick={desconectarPasarela}
+                          disabled={conectando || desconectando}
+                          className="px-4 py-2 rounded-lg font-semibold text-sm border border-red-300 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-60"
+                        >
+                          {desconectando ? 'Desconectando...' : 'Desconectar'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : oauthDisponible === null ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-[#009EE3] animate-spin" />
+                    </div>
+                  ) : oauthDisponible ? (
+                    <div className="flex flex-col items-center gap-3 py-4 text-center">
+                      <p className="text-sm text-gray-500">
+                        Conectá tu cuenta de MercadoPago para recibir pagos de tus pacientes.
+                      </p>
+                      <button
+                        onClick={conectarMercadoPago}
+                        disabled={conectando}
+                        className="flex items-center gap-2 px-6 py-3 rounded-lg font-bold text-white text-sm transition-opacity disabled:opacity-60"
+                        style={{ backgroundColor: '#009EE3' }}
+                      >
+                        <Link size={16} />
+                        {conectando ? 'Redirigiendo a MercadoPago...' : 'Conectar con MercadoPago'}
                       </button>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 py-6 text-center">
+                      <div className="flex items-center gap-2 text-amber-500">
+                        <AlertCircle size={20} />
+                        <span className="font-semibold text-sm">Integración en configuración</span>
+                      </div>
+                      <p className="text-sm text-gray-500 max-w-xs">
+                        La integración con MercadoPago está siendo activada. Contactá al administrador del sistema si necesitás habilitarla.
+                      </p>
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <div className="py-2">
+                  {statusConexion === 'CONECTADO' ? (
+                    <div className="flex flex-col items-center gap-3 py-4 text-center">
+                      <div className="flex items-center gap-2 font-semibold" style={{ color: brand.DEFAULT }}>
+                        <Check size={18} /> Estado: Conectado
+                      </div>
+                      {stripeEmail && (
+                        <p className="text-sm text-gray-500">
+                          Cuenta: <span className="font-medium text-gray-700">{stripeEmail}</span>
+                        </p>
+                      )}
+                      <div className="flex gap-3 mt-1">
+                        <button
+                          onClick={conectarStripe}
+                          disabled={conectando || desconectando}
+                          className="px-4 py-2 rounded-lg font-semibold text-sm border border-[#635BFF] text-[#635BFF] hover:bg-indigo-50 transition-colors disabled:opacity-60"
+                        >
+                          Reconectar
+                        </button>
+                        <button
+                          onClick={desconectarPasarela}
+                          disabled={conectando || desconectando}
+                          className="px-4 py-2 rounded-lg font-semibold text-sm border border-red-300 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-60"
+                        >
+                          {desconectando ? 'Desconectando...' : 'Desconectar'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : stripeOauthDisponible === null ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-[#635BFF] animate-spin" />
+                    </div>
+                  ) : stripeOauthDisponible ? (
+                    <div className="flex flex-col items-center gap-3 py-4 text-center">
+                      <p className="text-sm text-gray-500">
+                        Conectá tu cuenta de Stripe para recibir pagos de tus pacientes.
+                      </p>
+                      <button
+                        onClick={conectarStripe}
+                        disabled={conectando}
+                        className="flex items-center gap-2 px-6 py-3 rounded-lg font-bold text-white text-sm transition-opacity disabled:opacity-60"
+                        style={{ backgroundColor: '#635BFF' }}
+                      >
+                        <Link size={16} />
+                        {conectando ? 'Redirigiendo a Stripe...' : 'Conectar con Stripe'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 py-6 text-center">
+                      <div className="flex items-center gap-2 text-amber-500">
+                        <AlertCircle size={20} />
+                        <span className="font-semibold text-sm">Integración en configuración</span>
+                      </div>
+                      <p className="text-sm text-gray-500 max-w-xs">
+                        La integración con Stripe está siendo activada. Contactá al administrador del sistema si necesitás habilitarla.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {errorCredenciales && (
+                <p className="text-xs text-red-500 bg-red-50 rounded px-3 py-2 mt-2">{errorCredenciales}</p>
               )}
             </div>
           </div>

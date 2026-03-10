@@ -1,4 +1,5 @@
 const { sendMail } = require('../config/mailer');
+const { enviarWhatsApp } = require('./whatsapp.service');
 const { ConfiguracionRecordatorios } = require('../models');
 
 const getStyles = () => `
@@ -181,6 +182,16 @@ const enviarRecordatorio = async (turno, paciente, profesional) => {
     `;
 
     await sendMail({ to: paciente.email, subject, html });
+
+    // Canal WhatsApp (si está habilitado y el paciente tiene teléfono)
+    if (config.whatsappHabilitado && paciente.telefono && paciente.aceptaRecordatorios) {
+      const mensajeWA = config.mensajeWhatsapp
+        ? _interpolarVariables(config.mensajeWhatsapp, { turno, paciente, profesional })
+        : `⏰ Recordatorio de turno\nHola ${paciente.nombre}, te recordamos tu turno con ${profesional.nombre} ${profesional.apellido}\n📅 ${turno.fecha} a las ${turno.horaInicio} hs\nModalidad: ${turno.modalidad}`;
+      await enviarWhatsApp(paciente.telefono, mensajeWA).catch((e) =>
+        console.error('[WhatsApp] Error en recordatorio:', e.message)
+      );
+    }
   } catch (error) {
     console.error('Error enviando recordatorio:', error);
   }
@@ -224,9 +235,33 @@ const enviarNotificacionAusencia = async (turno, paciente, profesional) => {
     `;
 
     await sendMail({ to: paciente.email, subject, html });
+
+    // Canal WhatsApp (si está habilitado)
+    if (config.whatsappHabilitado && paciente.telefono && paciente.aceptaRecordatorios) {
+      const mensajeWA = config.mensajeAusencia
+        ? _interpolarVariables(config.mensajeAusencia, { turno, paciente, profesional })
+        : `✋ Registramos tu ausencia al turno del ${turno.fecha} a las ${turno.horaInicio} hs con ${profesional.nombre} ${profesional.apellido}. Si deseás reprogramar, contactanos.`;
+      await enviarWhatsApp(paciente.telefono, mensajeWA).catch((e) =>
+        console.error('[WhatsApp] Error en ausencia:', e.message)
+      );
+    }
   } catch (error) {
     console.error('Error enviando notificación ausencia:', error);
   }
+};
+
+// Helper interno para interpolar variables en mensajes personalizados
+const _interpolarVariables = (mensaje, { turno, paciente, profesional }) => {
+  if (!mensaje) return '';
+  return mensaje
+    .replace(/\{\{nombre\}\}/g,       paciente.nombre || '')
+    .replace(/\{\{apellido\}\}/g,     paciente.apellido || '')
+    .replace(/\{\{fecha\}\}/g,        turno.fecha || '')
+    .replace(/\{\{hora\}\}/g,         turno.horaInicio || '')
+    .replace(/\{\{profesional\}\}/g,  `${profesional.nombre} ${profesional.apellido}`)
+    .replace(/\{\{especialidad\}\}/g, profesional.especialidad || '')
+    .replace(/\{\{direccion\}\}/g,    profesional.direccion || '')
+    .replace(/\{\{duracion\}\}/g,     String(turno.duracion || profesional.duracionTurno || ''));
 };
 
 module.exports = {

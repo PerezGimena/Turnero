@@ -183,6 +183,13 @@ export default function LoginPage() {
               Crear una cuenta profesional
             </Link>
           </div>
+
+          <div className="pt-2 text-center border-t border-slate-100">
+            <p className="text-xs text-slate-400 mb-1">¿Sos administrador de TurnoSalud?</p>
+            <Link to="/admin/login" className="text-xs font-medium text-slate-500 hover:text-slate-700 underline">
+              Acceder al panel de administración →
+            </Link>
+          </div>
         </div>
       </div>
     </div>

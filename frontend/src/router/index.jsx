@@ -33,6 +33,7 @@ import {
   AdminLoginPage,
   DashboardAdminPage,
   GestionProfesionalesPage,
+  IntegracionesAdminPage,
   NotFoundPage
 } from '../pages/index.jsx'
 
@@ -90,6 +91,7 @@ const router = createBrowserRouter([
         children: [
           { path: 'dashboard', element: <DashboardAdminPage /> },
           { path: 'profesionales', element: <GestionProfesionalesPage /> },
+          { path: 'integraciones', element: <IntegracionesAdminPage /> },
         ]
       }
     ]

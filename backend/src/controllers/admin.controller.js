@@ -1,7 +1,9 @@
 const { Profesional, Turno, ConfiguracionRecordatorios, ConfiguracionDia } = require('../models');
+const Admin = require('../models/Admin');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../config/jwt');
 const { Op } = require('sequelize');
+const { getIntegracionesConfig, invalidarCache, CLAVES } = require('../services/integraciones.service');
 
 // GET /api/admin/profesionales
 const getProfesionales = async (req, res, next) => {
@@ -258,6 +260,60 @@ const impersonarProfesional = async (req, res, next) => {
   }
 };
 
+// GET /api/admin/integraciones
+const getIntegraciones = async (req, res, next) => {
+  try {
+    const config = await getIntegracionesConfig();
+
+    // Devolver estado enmascarado (no exponer secretos completos)
+    const mascarar = (val) => (val ? `${val.slice(0, 6)}${'*'.repeat(Math.max(0, val.length - 6))}` : null);
+
+    res.json({
+      ok: true,
+      data: {
+        MP_CLIENT_ID:     config.MP_CLIENT_ID     || null,
+        MP_CLIENT_SECRET: mascarar(config.MP_CLIENT_SECRET),
+        STRIPE_CLIENT_ID: config.STRIPE_CLIENT_ID || null,
+        STRIPE_SECRET_KEY: mascarar(config.STRIPE_SECRET_KEY),
+        // flags de disponibilidad
+        mpConfigurado:     !!(config.MP_CLIENT_ID && config.MP_CLIENT_SECRET),
+        stripeConfigurado: !!(config.STRIPE_CLIENT_ID && config.STRIPE_SECRET_KEY),
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /api/admin/integraciones
+const saveIntegraciones = async (req, res, next) => {
+  try {
+    const admin = await Admin.findOne();
+    if (!admin) {
+      return res.status(404).json({ ok: false, message: 'Admin no encontrado' });
+    }
+
+    const configActual = admin.configuracion || {};
+    const nueva = { ...configActual };
+
+    // Solo actualizar las claves enviadas y no vacías
+    for (const clave of CLAVES) {
+      if (req.body[clave] !== undefined && req.body[clave] !== '') {
+        nueva[clave] = req.body[clave];
+      }
+    }
+
+    admin.configuracion = nueva;
+    admin.changed('configuracion', true); // forzar detección de cambio en columna JSON
+    await admin.save();
+    invalidarCache();
+
+    res.json({ ok: true, message: 'Credenciales de integraciones guardadas correctamente.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfesionales,
   createProfesional,
@@ -265,5 +321,7 @@ module.exports = {
   updateEstadoProfesional,
   deleteProfesional,
   getMetricasGlobales,
-  impersonarProfesional
+  impersonarProfesional,
+  getIntegraciones,
+  saveIntegraciones
 };

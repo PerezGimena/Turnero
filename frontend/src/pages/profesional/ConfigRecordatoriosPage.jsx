@@ -77,6 +77,10 @@ const ConfiguracionRecordatorios = () => {
     }
   }
 
+  function handleToggle(field) {
+    setConfig(c => ({ ...c, [field]: !c[field] }));
+  }
+
   async function enviarPrueba() {
     try {
       await axios.post('http://localhost:3001/api/profesional/recordatorios/prueba', {}, { headers });

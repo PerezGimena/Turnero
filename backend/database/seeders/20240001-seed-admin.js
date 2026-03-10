@@ -4,7 +4,9 @@ const bcrypt = require('bcryptjs');
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    const hashedPassword = bcrypt.hashSync('Admin1234!', 10);
+    // IMPORTANTE: password unificada con database/seeders/index.js
+    // Si ya corriste `npm run seed`, este seeder NO sobreescribirá el registro (ON DUPLICATE IGNORE)
+    const hashedPassword = bcrypt.hashSync('Admin123!', 10);
     
     await queryInterface.bulkInsert('Admins', [{
       email: 'admin@turnosalud.com',
@@ -12,7 +14,7 @@ module.exports = {
       nombre: 'Administrador Principal',
       createdAt: new Date(),
       updatedAt: new Date()
-    }], {});
+    }], { ignoreDuplicates: true });
   },
 
   async down (queryInterface, Sequelize) {

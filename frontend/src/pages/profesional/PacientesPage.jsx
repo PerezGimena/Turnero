@@ -55,6 +55,18 @@ export default function PacientesPage() {
   const [guardando, setGuardando] = useState(false);
   const timer = useRef(null);
 
+  // Modal Nuevo Turno
+  const [modalNuevoTurno, setModalNuevoTurno] = useState(false);
+  const [formNuevoTurno, setFormNuevoTurno] = useState({ fecha: '', horaInicio: '', modalidad: 'presencial', notas: '' });
+  const [guardandoTurno, setGuardandoTurno] = useState(false);
+  const [errorTurno, setErrorTurno] = useState(null);
+
+  // Modal Enviar Mensaje
+  const [modalMensaje, setModalMensaje] = useState(false);
+  const [formMensaje, setFormMensaje] = useState({ asunto: '', texto: '' });
+  const [enviandoMensaje, setEnviandoMensaje] = useState(false);
+  const [exitoMensaje, setExitoMensaje] = useState(false);
+
   const cargarPacientes = useCallback(async (p, b) => {
     setCargando(true);
     try {
@@ -99,6 +111,58 @@ export default function PacientesPage() {
       console.error(e);
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function crearNuevoTurno() {
+    if (!formNuevoTurno.fecha || !formNuevoTurno.horaInicio) return;
+    setGuardandoTurno(true);
+    setErrorTurno(null);
+    try {
+      const payload = {
+        fecha: formNuevoTurno.fecha,
+        horaInicio: formNuevoTurno.horaInicio,
+        modalidad: formNuevoTurno.modalidad,
+        notas: formNuevoTurno.notas,
+        paciente: {
+          nombre: panelPaciente.nombre,
+          apellido: panelPaciente.apellido,
+          email: panelPaciente.email,
+          telefono: panelPaciente.telefono || '—',
+        },
+      };
+      await axios.post('http://localhost:3001/api/profesional/turnos', payload, { headers });
+      setModalNuevoTurno(false);
+      setFormNuevoTurno({ fecha: '', horaInicio: '', modalidad: 'presencial', notas: '' });
+      // Refrescar detalle del paciente para mostrar el nuevo turno
+      const { data } = await axios.get(`http://localhost:3001/api/profesional/pacientes/${panelPaciente.id}`, { headers });
+      setDetalle(data.data);
+    } catch (e) {
+      setErrorTurno(e.response?.data?.message || 'Error al crear el turno. Verificá los datos.');
+    } finally {
+      setGuardandoTurno(false);
+    }
+  }
+
+  async function enviarMensaje() {
+    if (!formMensaje.asunto.trim() || !formMensaje.texto.trim()) return;
+    setEnviandoMensaje(true);
+    try {
+      await axios.post(
+        `http://localhost:3001/api/profesional/pacientes/${panelPaciente.id}/mensaje`,
+        { asunto: formMensaje.asunto, mensaje: formMensaje.texto },
+        { headers }
+      );
+      setExitoMensaje(true);
+      setTimeout(() => {
+        setModalMensaje(false);
+        setFormMensaje({ asunto: '', texto: '' });
+        setExitoMensaje(false);
+      }, 1800);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setEnviandoMensaje(false);
     }
   }
 
@@ -323,15 +387,146 @@ export default function PacientesPage() {
 
             {/* Acciones */}
             <div className="px-5 py-4 border-t border-slate-100 space-y-2">
-              <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors">
+              <button
+                onClick={() => { setErrorTurno(null); setFormNuevoTurno({ fecha: '', horaInicio: '', modalidad: 'presencial', notas: '' }); setModalNuevoTurno(true); }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors">
                 <CalendarPlus size={13} /> Nuevo turno para este paciente
               </button>
-              <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition-colors">
+              <button
+                onClick={() => { setFormMensaje({ asunto: '', texto: '' }); setExitoMensaje(false); setModalMensaje(true); }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition-colors">
                 <MessageSquare size={13} /> Enviar mensaje
               </button>
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Modal Nuevo turno para paciente ── */}
+      {modalNuevoTurno && panelPaciente && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModalNuevoTurno(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md"
+            style={{ animation: "modal-in .18s ease-out" }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Nuevo turno</h2>
+                <p className="text-xs text-slate-400 mt-0.5">{panelPaciente.nombre} {panelPaciente.apellido}</p>
+              </div>
+              <button onClick={() => setModalNuevoTurno(false)}
+                className="w-8 h-8 rounded-xl hover:bg-slate-100 flex items-center justify-center text-slate-400">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">Fecha <span className="text-emerald-500">*</span></label>
+                  <input type="date" value={formNuevoTurno.fecha}
+                    onChange={e => setFormNuevoTurno(f => ({...f, fecha: e.target.value}))}
+                    className={inputCls} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1.5">Hora <span className="text-emerald-500">*</span></label>
+                  <input type="time" value={formNuevoTurno.horaInicio}
+                    onChange={e => setFormNuevoTurno(f => ({...f, horaInicio: e.target.value}))}
+                    className={inputCls} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1.5">Modalidad</label>
+                <select value={formNuevoTurno.modalidad}
+                  onChange={e => setFormNuevoTurno(f => ({...f, modalidad: e.target.value}))}
+                  className={inputCls}>
+                  <option value="presencial">Presencial</option>
+                  <option value="virtual">Virtual</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1.5">Notas <span className="text-slate-400 font-normal">— opcional</span></label>
+                <textarea rows={3} value={formNuevoTurno.notas}
+                  onChange={e => setFormNuevoTurno(f => ({...f, notas: e.target.value}))}
+                  placeholder="Motivo de consulta, instrucciones, etc."
+                  className={inputCls + " resize-none"} />
+              </div>
+              {errorTurno && (
+                <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">{errorTurno}</p>
+              )}
+            </div>
+
+            <div className="px-6 pb-5 flex gap-2">
+              <button onClick={() => setModalNuevoTurno(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={crearNuevoTurno} disabled={guardandoTurno || !formNuevoTurno.fecha || !formNuevoTurno.horaInicio}
+                className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors disabled:opacity-60">
+                {guardandoTurno ? 'Creando...' : 'Crear turno'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Enviar mensaje ── */}
+      {modalMensaje && panelPaciente && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModalMensaje(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md"
+            style={{ animation: "modal-in .18s ease-out" }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Enviar mensaje</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Para: {panelPaciente.email}</p>
+              </div>
+              <button onClick={() => setModalMensaje(false)}
+                className="w-8 h-8 rounded-xl hover:bg-slate-100 flex items-center justify-center text-slate-400">
+                <X size={16} />
+              </button>
+            </div>
+
+            {exitoMensaje ? (
+              <div className="px-6 py-10 flex flex-col items-center text-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <Mail size={22} className="text-emerald-600" />
+                </div>
+                <p className="text-sm font-bold text-slate-800">¡Mensaje enviado!</p>
+                <p className="text-xs text-slate-400">{panelPaciente.nombre} recibirá el email en instantes.</p>
+              </div>
+            ) : (
+              <>
+                <div className="px-6 py-5 space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1.5">Asunto <span className="text-emerald-500">*</span></label>
+                    <input type="text" value={formMensaje.asunto}
+                      onChange={e => setFormMensaje(f => ({...f, asunto: e.target.value}))}
+                      placeholder="Ej: Recordatorio de turno"
+                      className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1.5">Mensaje <span className="text-emerald-500">*</span></label>
+                    <textarea rows={5} value={formMensaje.texto}
+                      onChange={e => setFormMensaje(f => ({...f, texto: e.target.value}))}
+                      placeholder="Escribí tu mensaje aquí..."
+                      className={inputCls + " resize-none"} />
+                  </div>
+                </div>
+                <div className="px-6 pb-5 flex gap-2">
+                  <button onClick={() => setModalMensaje(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                    Cancelar
+                  </button>
+                  <button onClick={enviarMensaje}
+                    disabled={enviandoMensaje || !formMensaje.asunto.trim() || !formMensaje.texto.trim()}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors disabled:opacity-60">
+                    {enviandoMensaje ? 'Enviando...' : 'Enviar mensaje'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── Modal Agregar paciente ── */}

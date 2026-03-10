@@ -41,7 +41,7 @@ const Turno = sequelize.define('Turno', {
     allowNull: false
   },
   estado: {
-    type: DataTypes.ENUM('pendiente', 'confirmado', 'cancelado', 'ausente', 'completado'),
+    type: DataTypes.ENUM('pendiente', 'pendiente_pago', 'confirmado', 'cancelado', 'ausente', 'completado'),
     defaultValue: 'pendiente'
   },
   motivoConsulta: {

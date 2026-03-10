@@ -1,7 +1,7 @@
 -- ============================================================
 --  TurnoSalud — Script de creación de base de datos
 --  Motor: MySQL 8+
---  Autor: generado por GitHub Copilot
+--  Esquema sincronizado con migraciones hasta: 20240010
 --  IMPORTANTE: Las contraseñas de prueba se insertan con el
 --  seeder Node.js (database/seeders/index.js) que genera
 --  hashes bcrypt reales. NO usar este archivo para contraseñas.
@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS Admins (
     email VARCHAR(255) UNIQUE NOT NULL,
     passwordHash VARCHAR(255) NOT NULL,
     nombre VARCHAR(100),
+    configuracion JSON,                        -- migración 20240009
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -99,7 +100,7 @@ CREATE TABLE IF NOT EXISTS Turnos (
     horaFin VARCHAR(5) NOT NULL,
     duracion INT NOT NULL,
     modalidad ENUM('presencial','virtual','ambas') NOT NULL,
-    estado ENUM('pendiente','confirmado','cancelado','ausente','completado') DEFAULT 'pendiente',
+    estado ENUM('pendiente','pendiente_pago','confirmado','cancelado','ausente','completado') DEFAULT 'pendiente',
     motivoConsulta TEXT,
     motivoCancelacion TEXT,
     pagoId INT,
@@ -110,7 +111,8 @@ CREATE TABLE IF NOT EXISTS Turnos (
     FOREIGN KEY (pacienteId) REFERENCES Pacientes(id) ON DELETE CASCADE,
     INDEX idx_turno_profesional_fecha (profesionalId, fecha),
     INDEX idx_turno_referencia (referencia),
-    INDEX idx_turno_estado (estado)
+    INDEX idx_turno_estado (estado),
+    INDEX idx_turnos_paciente (pacienteId)           -- migración 20240010
 );
 
 -- Tabla Pago
@@ -128,7 +130,10 @@ CREATE TABLE IF NOT EXISTS Pagos (
     updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (turnoId) REFERENCES Turnos(id) ON DELETE CASCADE,
     FOREIGN KEY (profesionalId) REFERENCES Profesionales(id) ON DELETE CASCADE,
-    FOREIGN KEY (pacienteId) REFERENCES Pacientes(id) ON DELETE CASCADE
+    FOREIGN KEY (pacienteId) REFERENCES Pacientes(id) ON DELETE CASCADE,
+    INDEX idx_pagos_profesional_estado (profesionalId, estado),   -- migración 20240010
+    INDEX idx_pagos_pasarela_estado (pasarela, estado),           -- migración 20240010
+    INDEX idx_pagos_transaccion (transaccionId)                   -- migración 20240010
 );
 
 -- Tabla ConfiguracionRecordatorios

@@ -561,6 +561,338 @@ const getMetricasDashboard = async (req, res, next) => {
   }
 };
 
+// --- MENSAJES A PACIENTES ---
+
+const enviarMensajePaciente = async (req, res, next) => {
+  try {
+    const profesionalId = req.user.sub;
+    const { id } = req.params;
+    const { asunto, mensaje } = req.body;
+
+    if (!asunto?.trim() || !mensaje?.trim()) {
+      return res.status(400).json({
+        ok: false,
+        error: 'DATOS_INCOMPLETOS',
+        message: 'Asunto y mensaje son requeridos.'
+      });
+    }
+
+    const paciente = await Paciente.findOne({ where: { id, profesionalId } });
+    if (!paciente) {
+      return res.status(404).json({ ok: false, error: 'PACIENTE_NO_ENCONTRADO' });
+    }
+
+    const profesional = await Profesional.findByPk(profesionalId, {
+      attributes: ['nombre', 'apellido']
+    });
+
+    const { sendMail } = require('../config/mailer');
+    await sendMail({
+      to: paciente.email,
+      subject: asunto,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #ddd;border-radius:8px;">
+          <p>Hola <strong>${paciente.nombre}</strong>,</p>
+          <div style="white-space:pre-line;line-height:1.6;margin:16px 0;color:#333;">${mensaje.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>
+          <p style="margin-top:24px;font-size:0.85em;color:#666;">
+            Saludos,<br>
+            ${profesional.nombre} ${profesional.apellido}
+          </p>
+        </div>
+      `
+    });
+
+    res.json({ ok: true, message: 'Mensaje enviado correctamente.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// --- CREDENCIALES DE PAGO ---
+
+const guardarCredencialesPago = async (req, res, next) => {
+  try {
+    const profesionalId = req.user.sub;
+    const { pasarela, accessToken, publishableKey } = req.body;
+
+    if (!pasarela || !accessToken) {
+      return res.status(400).json({
+        ok: false,
+        error: 'DATOS_INCOMPLETOS',
+        message: 'Pasarela y token son requeridos.'
+      });
+    }
+
+    const credencialesObj = pasarela === 'mercadopago'
+      ? { mercadopago: { accessToken } }
+      : { stripe: { secretKey: accessToken, publishableKey } };
+
+    await Profesional.update(
+      { pagoCredenciales: JSON.stringify(credencialesObj), pasarelaPago: pasarela },
+      { where: { id: profesionalId } }
+    );
+
+    res.json({ ok: true, statusConexion: 'CONECTADO', message: 'Credenciales guardadas correctamente.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getEstadoCredencialesPago = async (req, res, next) => {
+  try {
+    const profesionalId = req.user.sub;
+    const [profesional, intConf] = await Promise.all([
+      Profesional.findByPk(profesionalId, { attributes: ['pagoCredenciales', 'pasarelaPago'] }),
+      getIntegracionesConfig(),
+    ]);
+
+    const credenciales = profesional?.pagoCredenciales
+      ? (typeof profesional.pagoCredenciales === 'string'
+          ? JSON.parse(profesional.pagoCredenciales)
+          : profesional.pagoCredenciales)
+      : null;
+
+    const mpConectado = !!credenciales?.mercadopago?.accessToken;
+    const stripeConectado = !!credenciales?.stripe?.accountId;
+
+    res.json({
+      ok: true,
+      data: {
+        statusConexion: mpConectado || stripeConectado ? 'CONECTADO' : 'DESCONECTADO',
+        pasarela: profesional?.pasarelaPago || null,
+        oauthDisponible: !!(intConf.MP_CLIENT_ID && intConf.MP_CLIENT_SECRET),
+        stripeOauthDisponible: !!(intConf.STRIPE_CLIENT_ID && intConf.STRIPE_SECRET_KEY),
+        mpEmail: credenciales?.mercadopago?.email
+          || (credenciales?.mercadopago?.mpUserId ? `ID: ${credenciales.mercadopago.mpUserId}` : null),
+        stripeEmail: credenciales?.stripe?.email || null,
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// --- MERCADOPAGO OAUTH ---
+
+const jwt = require('jsonwebtoken');
+const https = require('https');
+const { getIntegracionesConfig } = require('../services/integraciones.service');
+
+const getMpOAuthUrl = async (req, res, next) => {
+  try {
+    const intConf = await getIntegracionesConfig();
+    const clientId = intConf.MP_CLIENT_ID;
+    if (!clientId) {
+      return res.status(503).json({ ok: false, message: 'OAuth de MercadoPago no configurado (MP_CLIENT_ID faltante).' });
+    }
+    const profesionalId = req.user.sub;
+    const state = jwt.sign({ profesionalId }, process.env.JWT_SECRET, { expiresIn: '5m' });
+    const redirectUri = `${process.env.API_URL}/api/mp/oauth/callback`;
+    const url =
+      `https://auth.mercadopago.com/authorization` +
+      `?client_id=${encodeURIComponent(clientId)}` +
+      `&response_type=code` +
+      `&platform_id=mp` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&state=${encodeURIComponent(state)}`;
+    res.json({ ok: true, url });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const mpOAuthCallback = async (req, res) => {
+  const { code, state } = req.query;
+  const frontendUrl = process.env.APP_URL || 'http://localhost:5173';
+
+  try {
+    if (!code || !state) throw new Error('Parámetros incompletos');
+
+    const { profesionalId } = jwt.verify(state, process.env.JWT_SECRET);
+
+    // Intercambiar código por access_token
+    const intConf = await getIntegracionesConfig();
+    const params = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: intConf.MP_CLIENT_ID,
+      client_secret: intConf.MP_CLIENT_SECRET,
+      code,
+      redirect_uri: `${process.env.API_URL}/api/mp/oauth/callback`,
+    });
+    const body = params.toString();
+
+    const mpData = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'api.mercadopago.com',
+        path: '/oauth/token',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      };
+      const request = https.request(options, (resp) => {
+        let raw = '';
+        resp.on('data', chunk => { raw += chunk; });
+        resp.on('end', () => {
+          try { resolve(JSON.parse(raw)); } catch (e) { reject(e); }
+        });
+      });
+      request.on('error', reject);
+      request.write(body);
+      request.end();
+    });
+
+    if (!mpData.access_token) {
+      throw new Error(mpData.message || 'No se obtuvo access_token de MercadoPago');
+    }
+
+    // Obtener email del usuario de MercadoPago
+    let mpEmail = null;
+    try {
+      const userInfo = await new Promise((resolve, reject) => {
+        const opts = {
+          hostname: 'api.mercadopago.com',
+          path: '/users/me',
+          method: 'GET',
+          headers: { Authorization: `Bearer ${mpData.access_token}` },
+        };
+        const req2 = https.request(opts, (resp) => {
+          let raw = '';
+          resp.on('data', c => { raw += c; });
+          resp.on('end', () => { try { resolve(JSON.parse(raw)); } catch (e) { reject(e); } });
+        });
+        req2.on('error', reject);
+        req2.end();
+      });
+      mpEmail = userInfo.email || null;
+    } catch (e) {
+      console.warn('[MP OAuth] No se pudo obtener email del usuario:', e.message);
+    }
+
+    const credencialesObj = {
+      mercadopago: {
+        accessToken: mpData.access_token,
+        refreshToken: mpData.refresh_token || null,
+        mpUserId: mpData.user_id || null,
+        email: mpEmail,
+      }
+    };
+
+    await Profesional.update(
+      { pagoCredenciales: JSON.stringify(credencialesObj), pasarelaPago: 'mercadopago' },
+      { where: { id: profesionalId } }
+    );
+
+    res.redirect(`${frontendUrl}/profesional/pagos-config?mp_connected=true`);
+  } catch (error) {
+    console.error('[MP OAuth callback error]', error.message);
+    res.redirect(`${frontendUrl}/profesional/pagos-config?mp_connected=error`);
+  }
+};
+
+const desconectarPasarela = async (req, res, next) => {
+  try {
+    const profesionalId = req.user.sub;
+    await Profesional.update(
+      { pagoCredenciales: null, pasarelaPago: null },
+      { where: { id: profesionalId } }
+    );
+    res.json({ ok: true, message: 'Pasarela desconectada correctamente' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// --- STRIPE CONNECT OAUTH ---
+
+const getStripeOAuthUrl = async (req, res, next) => {
+  try {
+    const intConf = await getIntegracionesConfig();
+    const clientId = intConf.STRIPE_CLIENT_ID; // ca_xxx
+    if (!clientId) {
+      return res.status(503).json({ ok: false, message: 'OAuth de Stripe no configurado (STRIPE_CLIENT_ID faltante).' });
+    }
+    const profesionalId = req.user.sub;
+    const state = jwt.sign({ profesionalId }, process.env.JWT_SECRET, { expiresIn: '5m' });
+    const redirectUri = `${process.env.API_URL}/api/stripe/oauth/callback`;
+    const url =
+      `https://connect.stripe.com/oauth/authorize` +
+      `?response_type=code` +
+      `&client_id=${encodeURIComponent(clientId)}` +
+      `&scope=read_write` +
+      `&state=${encodeURIComponent(state)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    res.json({ ok: true, url });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const stripeOAuthCallback = async (req, res) => {
+  const { code, state } = req.query;
+  const frontendUrl = process.env.APP_URL || 'http://localhost:5173';
+
+  try {
+    if (!code || !state) throw new Error('Parámetros incompletos');
+
+    const { profesionalId } = jwt.verify(state, process.env.JWT_SECRET);
+
+    const intConf = await getIntegracionesConfig();
+
+    // Intercambiar código por access_token usando Stripe Connect
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+    }).toString();
+
+    const stripeData = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'connect.stripe.com',
+        path: '/oauth/token',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(body),
+          'Authorization': `Bearer ${intConf.STRIPE_SECRET_KEY}`,
+        },
+      };
+      const request = https.request(options, (resp) => {
+        let raw = '';
+        resp.on('data', chunk => { raw += chunk; });
+        resp.on('end', () => {
+          try { resolve(JSON.parse(raw)); } catch (e) { reject(e); }
+        });
+      });
+      request.on('error', reject);
+      request.write(body);
+      request.end();
+    });
+
+    if (!stripeData.access_token) {
+      throw new Error(stripeData.error_description || stripeData.error || 'No se obtuvo access_token de Stripe');
+    }
+
+    const credencialesObj = {
+      stripe: {
+        accessToken: stripeData.access_token,
+        stripeUserId: stripeData.stripe_user_id,
+        publishableKey: stripeData.stripe_publishable_key || null,
+      }
+    };
+
+    await Profesional.update(
+      { pagoCredenciales: JSON.stringify(credencialesObj), pasarelaPago: 'stripe' },
+      { where: { id: profesionalId } }
+    );
+
+    res.redirect(`${frontendUrl}/profesional/pagos-config?stripe_connected=true`);
+  } catch (error) {
+    console.error('[Stripe OAuth callback error]', error.message);
+    res.redirect(`${frontendUrl}/profesional/pagos-config?stripe_connected=error`);
+  }
+};
+
 module.exports = {
   getTurnos,
   getTurnoById,
@@ -573,7 +905,15 @@ module.exports = {
   getPacientes,
   getPacienteById,
   crearPacienteManual,
+  enviarMensajePaciente,
   getPerfil,
   updatePerfil,
   getMetricasDashboard,
+  guardarCredencialesPago,
+  getEstadoCredencialesPago,
+  getMpOAuthUrl,
+  mpOAuthCallback,
+  desconectarPasarela,
+  getStripeOAuthUrl,
+  stripeOAuthCallback,
 };

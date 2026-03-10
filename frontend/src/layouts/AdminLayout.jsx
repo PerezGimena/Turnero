@@ -1,12 +1,13 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, Users, LogOut,
+  LayoutDashboard, Users, LogOut, Plug,
 } from "lucide-react";
 import useAuthStore from "../store/useAuthStore.jsx";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard",         path: "/admin/dashboard" },
   { icon: Users,           label: "Profesionales",     path: "/admin/profesionales" },
+  { icon: Plug,            label: "Integraciones",     path: "/admin/integraciones" },
 ];
 
 export default function AdminLayout() {
