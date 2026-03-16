@@ -3,7 +3,7 @@ import axios from "axios";
 import useAuthStore from "../../store/useAuthStore.jsx";
 import {
   Settings2, Eye, EyeOff, Save, CheckCircle2, AlertCircle, Info,
-  CreditCard, Smartphone
+  CreditCard, Smartphone, MessageCircle
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:3001/api";
@@ -59,6 +59,37 @@ const CAMPOS = [
     redirectUri: (apiUrl) => `${apiUrl}/api/stripe/oauth/callback`,
     docUrl: "https://stripe.com/docs/connect/oauth-reference",
   },
+  {
+    seccion: "whatsapp",
+    titulo: "WhatsApp Business (Twilio)",
+    subtitulo: "Proveedor centralizado para recordatorios de todos los profesionales",
+    color: "emerald",
+    icon: MessageCircle,
+    campos: [
+      {
+        key: "TWILIO_ACCOUNT_SID",
+        label: "Account SID",
+        tipo: "text",
+        placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        ayuda: "Twilio Console → Account Info → Account SID",
+      },
+      {
+        key: "TWILIO_AUTH_TOKEN",
+        label: "Auth Token",
+        tipo: "password",
+        placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        ayuda: "Twilio Console → Account Info → Auth Token",
+      },
+      {
+        key: "TWILIO_WHATSAPP_FROM",
+        label: "Número emisor",
+        tipo: "text",
+        placeholder: "whatsapp:+14155238886",
+        ayuda: "Formato obligatorio: whatsapp:+<codigoPais><numero>",
+      },
+    ],
+    docUrl: "https://www.twilio.com/docs/whatsapp",
+  },
 ];
 
 const colorClasses = {
@@ -77,6 +108,14 @@ const colorClasses = {
     focus: "focus:ring-violet-500 focus:border-violet-500",
     check: "text-violet-600",
     dot: "bg-violet-500",
+  },
+  emerald: {
+    badge: "bg-emerald-100 text-emerald-700",
+    border: "border-emerald-200",
+    header: "bg-emerald-50 border-b border-emerald-100",
+    focus: "focus:ring-emerald-500 focus:border-emerald-500",
+    check: "text-emerald-600",
+    dot: "bg-emerald-500",
   },
 };
 
@@ -132,8 +171,8 @@ export default function IntegracionesAdminPage() {
           <Settings2 size={18} className="text-violet-600" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Integraciones de pago</h1>
-          <p className="text-sm text-slate-500">Credenciales OAuth para MercadoPago y Stripe</p>
+          <h1 className="text-xl font-bold text-slate-800">Integraciones de plataforma</h1>
+          <p className="text-sm text-slate-500">Pagos (MercadoPago/Stripe) y WhatsApp Business (Twilio)</p>
         </div>
       </div>
 
@@ -141,8 +180,8 @@ export default function IntegracionesAdminPage() {
       <div className="mt-5 mb-6 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
         <Info size={16} className="text-amber-500 mt-0.5 shrink-0" />
         <p className="text-xs text-amber-700 leading-relaxed">
-          Estas credenciales permiten que los profesionales conecten sus cuentas de cobro mediante OAuth.
-          Las claves secretas se almacenan en la base de datos y se usan únicamente en el servidor.
+          Estas credenciales habilitan integraciones globales de la plataforma: pagos OAuth por profesional y
+          WhatsApp centralizado para recordatorios. Las claves secretas se almacenan en la base de datos y se usan únicamente en el servidor.
           Nunca se exponen al frontend.
         </p>
       </div>
@@ -151,14 +190,12 @@ export default function IntegracionesAdminPage() {
       <div className="space-y-6">
         {CAMPOS.map((seccion) => {
           const cl = colorClasses[seccion.color];
-          const allConfigured = seccion.campos.every(
-            (c) => estado?.[`${seccion.seccion === "mercadopago" ? "mp" : "stripe"}Configurado`] ||
-              estado?.[c.key]
-          );
           const configurado =
             seccion.seccion === "mercadopago"
               ? estado?.mpConfigurado
-              : estado?.stripeConfigurado;
+              : seccion.seccion === "stripe"
+                ? estado?.stripeConfigurado
+                : estado?.whatsappConfigurado;
 
           return (
             <div
@@ -229,33 +266,49 @@ export default function IntegracionesAdminPage() {
                   );
                 })}
 
-                {/* Redirect URI — solo lectura */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                    Redirect URI (registrar en la plataforma)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      readOnly
-                      value={seccion.redirectUri(apiPublicUrl)}
-                      className="flex-1 rounded-lg border border-dashed border-slate-300 bg-slate-100 px-3 py-2 text-xs text-slate-600 font-mono select-all outline-none"
-                    />
+                {seccion.redirectUri && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Redirect URI (registrar en la plataforma)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        readOnly
+                        value={seccion.redirectUri(apiPublicUrl)}
+                        className="flex-1 rounded-lg border border-dashed border-slate-300 bg-slate-100 px-3 py-2 text-xs text-slate-600 font-mono select-all outline-none"
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Copiá esta URL y registrala como "Redirect URI" en el dashboard de{" "}
+                      <a
+                        href={seccion.docUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`underline font-medium ${
+                          seccion.color === "sky" ? "text-sky-600" : seccion.color === "violet" ? "text-violet-600" : "text-emerald-600"
+                        }`}
+                      >
+                        {seccion.titulo}
+                      </a>
+                      .
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Copiá esta URL y registrala como "Redirect URI" en el dashboard de{" "}
+                )}
+
+                {!seccion.redirectUri && (
+                  <p className="text-xs text-slate-400">
+                    Documentación oficial de configuración:{" "}
                     <a
                       href={seccion.docUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`underline font-medium ${
-                        seccion.color === "sky" ? "text-sky-600" : "text-violet-600"
-                      }`}
+                      className="underline font-medium text-emerald-600"
                     >
                       {seccion.titulo}
                     </a>
                     .
                   </p>
-                </div>
+                )}
               </div>
             </div>
           );

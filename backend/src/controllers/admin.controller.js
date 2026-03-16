@@ -275,9 +275,17 @@ const getIntegraciones = async (req, res, next) => {
         MP_CLIENT_SECRET: mascarar(config.MP_CLIENT_SECRET),
         STRIPE_CLIENT_ID: config.STRIPE_CLIENT_ID || null,
         STRIPE_SECRET_KEY: mascarar(config.STRIPE_SECRET_KEY),
+        TWILIO_ACCOUNT_SID: config.TWILIO_ACCOUNT_SID || null,
+        TWILIO_AUTH_TOKEN: mascarar(config.TWILIO_AUTH_TOKEN),
+        TWILIO_WHATSAPP_FROM: config.TWILIO_WHATSAPP_FROM || null,
         // flags de disponibilidad
         mpConfigurado:     !!(config.MP_CLIENT_ID && config.MP_CLIENT_SECRET),
         stripeConfigurado: !!(config.STRIPE_CLIENT_ID && config.STRIPE_SECRET_KEY),
+        whatsappConfigurado: !!(
+          config.TWILIO_ACCOUNT_SID &&
+          config.TWILIO_AUTH_TOKEN &&
+          config.TWILIO_WHATSAPP_FROM
+        ),
       }
     });
   } catch (error) {

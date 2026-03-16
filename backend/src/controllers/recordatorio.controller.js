@@ -1,9 +1,16 @@
 const { ConfiguracionRecordatorios, Profesional } = require('../models');
 const recordatorioService = require('../services/recordatorio.service');
+const { getIntegracionesConfig } = require('../services/integraciones.service');
 
 const getRecordatorios = async (req, res, next) => {
   try {
     const profesionalId = req.user.sub;
+    const integraciones = await getIntegracionesConfig();
+    const whatsappProveedorConfigurado = !!(
+      integraciones.TWILIO_ACCOUNT_SID &&
+      integraciones.TWILIO_AUTH_TOKEN &&
+      integraciones.TWILIO_WHATSAPP_FROM
+    );
     
     // Buscar o construir (sin guardar) una instancia por defecto
     let config = await ConfiguracionRecordatorios.findOne({ 
@@ -30,7 +37,10 @@ const getRecordatorios = async (req, res, next) => {
 
     res.json({ 
       ok: true, 
-      data: config 
+      data: {
+        ...config.toJSON(),
+        whatsappProveedorConfigurado,
+      },
     });
   } catch (error) {
     next(error);
@@ -41,6 +51,20 @@ const updateRecordatorios = async (req, res, next) => {
   try {
     const profesionalId = req.user.sub;
     const data = req.body;
+    const integraciones = await getIntegracionesConfig();
+    const whatsappProveedorConfigurado = !!(
+      integraciones.TWILIO_ACCOUNT_SID &&
+      integraciones.TWILIO_AUTH_TOKEN &&
+      integraciones.TWILIO_WHATSAPP_FROM
+    );
+
+    if (data.whatsappHabilitado && !whatsappProveedorConfigurado) {
+      return res.status(400).json({
+        ok: false,
+        error: 'WHATSAPP_NO_CONFIGURADO',
+        message: 'WhatsApp no está listo. Pedí al admin que configure Twilio en Integraciones.',
+      });
+    }
 
     // Asegurar que profesionalId no se sobreescribe
     data.profesionalId = profesionalId;
@@ -68,37 +92,36 @@ const updateRecordatorios = async (req, res, next) => {
 const enviarPrueba = async (req, res, next) => {
   try {
     const profesionalId = req.user.sub;
-    const { emailDestino } = req.body;
+    const { emailDestino, telefonoDestino } = req.body;
 
     const profesional = await Profesional.findByPk(profesionalId);
 
     const mockTurno = {
-      fecha: "2024-12-01",
+      fecha: "2026-12-01",
       horaInicio: "10:00",
+      horaFin: "10:30",
+      duracion: 30,
       modalidad: "presencial",
       referencia: "PRUEBA-123",
     };
 
     const mockPaciente = {
       nombre: "Paciente de Prueba",
+      apellido: "Demo",
       email: emailDestino || profesional.email,
+      telefono: telefonoDestino || null,
+      aceptaRecordatorios: true,
     };
 
-    // Asumimos que recordatorioService tiene este método ya que venía del otro controller
-    if (recordatorioService.enviarConfirmacionReserva) {
-        await recordatorioService.enviarConfirmacionReserva(
-            mockTurno,
-            mockPaciente,
-            profesional,
-        );
-    } else {
-        // Fallback si el método tiene otro nombre o es genérico
-        console.warn('Método enviarConfirmacionReserva no encontrado en servicio recordatorio');
-    }
+    await recordatorioService.enviarRecordatorio(
+      mockTurno,
+      mockPaciente,
+      profesional,
+    );
 
     res.json({
       ok: true,
-      message: `Email de prueba enviado a ${mockPaciente.email}`,
+      message: `Prueba ejecutada. Email enviado a ${mockPaciente.email}${mockPaciente.telefono ? ` y WhatsApp intentado a ${mockPaciente.telefono}` : ' (sin teléfono para WhatsApp)'}`,
     });
   } catch (error) {
     next(error);

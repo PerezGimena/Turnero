@@ -1,7 +1,7 @@
 # Sistema Multi-Agente TurnoSalud
 
 > Arquitectura de agentes IA especializados para el desarrollo del sistema.
-> Última actualización del sistema de agentes: 10/03/2026 — Fix admin login (link al panel admin) + índices BD + setup.sql sincronizado + seeders unificados.
+> Última actualización del sistema de agentes: 16/03/2026 — WhatsApp SaaS listo: Twilio centralizado en Integraciones + validaciones y UI de configuración.
 
 ---
 
@@ -73,12 +73,14 @@
 | 09/03/2026 | coordinador+backend+database+frontend | Admin panel Integraciones: Admin.configuracion (JSON), integraciones.service.js, GET/PUT /admin/integraciones, IntegracionesAdminPage.jsx, migración 20240009-add-configuracion-to-admins.js | admin.controller.js, admin.routes.js, models/Admin.js, services/integraciones.service.js, database/migrations/20240009-add-configuracion-to-admins.js, pages/admin/IntegracionesAdminPage.jsx, pages/index.jsx, router/index.jsx, AdminLayout.jsx | ✅ Completado |
 | 09/03/2026 | coordinador+backend+frontend+mercadopago | Fix `oauthDisponible` siempre `false` en getEstadoCredencialesPago. Email del profesional guardado en OAuth callback. Endpoint DELETE /pagos-credenciales (desconectarPasarela). UI conectado: email + Reconectar + Desconectar. Fix JSON Sequelize `.changed()`. Renombrada migración 20240008→20240009. mercadopago/SKILL.md reescrito a OAuth-only. | profesional.controller.js, profesional.routes.js, ConfigPagosPage.jsx, admin.controller.js, .github/skills/mercadopago/SKILL.md, migrations/20240009-add-configuracion-to-admins.js | ✅ Completado |
 | 10/03/2026 | coordinador+database+frontend | Diagnóstico completo DER + fix bug admin login (sin link a /admin/login), seeders inconsistentes (Admin1234! vs Admin123!), índices faltantes en Pagos/Turnos, setup.sql desincronizado | LoginPage.jsx, seeders/20240001-seed-admin.js, migrations/20240010-add-missing-indexes.js, scripts/setup.sql | ✅ Completado |
+| 16/03/2026 | coordinador+automatizacion+backend+qa | Auditoría de recordatorios WhatsApp: diagnóstico de no envío y checklist de configuración faltante (Twilio + flags por profesional/paciente + límites del endpoint de prueba). | AGENT.md, backend/src/config/whatsapp.js, backend/src/services/whatsapp.service.js, backend/src/services/recordatorio.service.js, backend/src/services/cron.service.js, backend/src/controllers/recordatorio.controller.js, backend/.env.example | ✅ Completado |
+| 16/03/2026 | coordinador+automatizacion+backend+frontend+admin | Implementación SaaS WhatsApp: Twilio global desde Admin Integraciones (BD), estado whatsappConfigurado en APIs, bloqueo de activación por profesional si proveedor no está listo, endpoint de prueba usando flujo real de recordatorio, desacople de WhatsApp respecto de email, y UI admin con sección Twilio. | backend/src/services/integraciones.service.js, backend/src/services/whatsapp.service.js, backend/src/controllers/admin.controller.js, backend/src/controllers/recordatorio.controller.js, backend/src/services/recordatorio.service.js, backend/.env.example, frontend/src/pages/admin/IntegracionesAdminPage.jsx, frontend/src/pages/profesional/ConfigRecordatoriosPage.jsx, AGENT.md | ✅ Completado |
 
 ---
 
 # Estado del Proyecto
 
-> Última actualización: 09/03/2026 — OAuth MercadoPago + fix toggle WhatsApp.
+> Última actualización: 16/03/2026 — WhatsApp SaaS listo (Twilio centralizado + estado/validaciones por API + UI admin/profesional).
 
 ## Fases de Implementación
 

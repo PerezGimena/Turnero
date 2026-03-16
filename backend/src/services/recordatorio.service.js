@@ -141,7 +141,6 @@ const enviarNotificacionPendiente = async (turno, paciente, profesional) => {
 const enviarRecordatorio = async (turno, paciente, profesional) => {
   try {
     const config = await getConfig(profesional.id);
-    if (!config.emailHabilitado) return;
 
     const subject = `Recordatorio de Turno - ${profesional.nombre} ${profesional.apellido}`;
     
@@ -181,7 +180,9 @@ const enviarRecordatorio = async (turno, paciente, profesional) => {
       </div>
     `;
 
-    await sendMail({ to: paciente.email, subject, html });
+    if (config.emailHabilitado) {
+      await sendMail({ to: paciente.email, subject, html });
+    }
 
     // Canal WhatsApp (si está habilitado y el paciente tiene teléfono)
     if (config.whatsappHabilitado && paciente.telefono && paciente.aceptaRecordatorios) {
@@ -205,7 +206,7 @@ const enviarNotificacionAusencia = async (turno, paciente, profesional) => {
     const config = await getConfig(profesional.id);
     
     // Validar si está habilitado y si quiere enviar aviso de ausencia
-    if (!config.emailHabilitado || !config.recordatorioAusencia) return;
+    if (!config.recordatorioAusencia) return;
 
     const subject = `Ausencia en Turno - ${profesional.nombre} ${profesional.apellido}`;
     
@@ -234,7 +235,9 @@ const enviarNotificacionAusencia = async (turno, paciente, profesional) => {
       </div>
     `;
 
-    await sendMail({ to: paciente.email, subject, html });
+    if (config.emailHabilitado) {
+      await sendMail({ to: paciente.email, subject, html });
+    }
 
     // Canal WhatsApp (si está habilitado)
     if (config.whatsappHabilitado && paciente.telefono && paciente.aceptaRecordatorios) {

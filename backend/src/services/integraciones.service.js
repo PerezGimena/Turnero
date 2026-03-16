@@ -5,7 +5,15 @@
  */
 const Admin = require('../models/Admin');
 
-const CLAVES = ['MP_CLIENT_ID', 'MP_CLIENT_SECRET', 'STRIPE_CLIENT_ID', 'STRIPE_SECRET_KEY'];
+const CLAVES = [
+  'MP_CLIENT_ID',
+  'MP_CLIENT_SECRET',
+  'STRIPE_CLIENT_ID',
+  'STRIPE_SECRET_KEY',
+  'TWILIO_ACCOUNT_SID',
+  'TWILIO_AUTH_TOKEN',
+  'TWILIO_WHATSAPP_FROM',
+];
 
 // Cache en memoria para evitar consultas repetidas (TTL: 60s)
 let _cache = null;

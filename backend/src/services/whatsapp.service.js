@@ -1,7 +1,8 @@
 // ============================================================
 //  TurnoSalud — Servicio WhatsApp (Twilio)
 // ============================================================
-const { cliente } = require('../config/whatsapp');
+const twilio = require('twilio');
+const { getIntegracionesConfig } = require('./integraciones.service');
 
 /**
  * Normaliza un número de teléfono al formato E.164.
@@ -29,6 +30,15 @@ const normalizarTelefono = (telefono) => {
   return `+54${limpio}`;
 };
 
+const getTwilioRuntimeConfig = async () => {
+  const config = await getIntegracionesConfig();
+  return {
+    accountSid: config.TWILIO_ACCOUNT_SID,
+    authToken: config.TWILIO_AUTH_TOKEN,
+    from: config.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886',
+  };
+};
+
 /**
  * Envía un mensaje de WhatsApp usando Twilio.
  * Si Twilio no está configurado, loggea un warning y retorna sin error.
@@ -37,18 +47,20 @@ const normalizarTelefono = (telefono) => {
  * @param {string} mensaje - Texto plano del mensaje
  */
 const enviarWhatsApp = async (to, mensaje) => {
-  if (!cliente) {
+  const { accountSid, authToken, from } = await getTwilioRuntimeConfig();
+
+  if (!accountSid || !authToken) {
     console.warn('[WhatsApp] Twilio no configurado — mensaje no enviado a:', to);
     return;
   }
+
+  const cliente = twilio(accountSid, authToken);
 
   const toFormateado = normalizarTelefono(to);
   if (!toFormateado) {
     console.warn('[WhatsApp] Número inválido, se omite el envío:', to);
     return;
   }
-
-  const from = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
 
   await cliente.messages.create({
     from,

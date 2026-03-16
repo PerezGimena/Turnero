@@ -11,6 +11,7 @@ const ConfiguracionRecordatorios = () => {
   const headers = { Authorization: `Bearer ${token}` };
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [whatsappProveedorConfigurado, setWhatsappProveedorConfigurado] = useState(false);
 
   const [config, setConfig] = useState({
     emailActive: true,
@@ -32,6 +33,7 @@ const ConfiguracionRecordatorios = () => {
     axios.get('http://localhost:3001/api/profesional/recordatorios/config', { headers })
       .then(({ data }) => {
         const d = data.data;
+        setWhatsappProveedorConfigurado(!!d.whatsappProveedorConfigurado);
         setConfig(c => ({
           ...c,
           emailActive: d.emailHabilitado ?? true,
@@ -78,6 +80,10 @@ const ConfiguracionRecordatorios = () => {
   }
 
   function handleToggle(field) {
+    if (field === 'whatsappActive' && !whatsappProveedorConfigurado) {
+      alert('WhatsApp aún no está habilitado globalmente. Pedile al admin que configure Twilio en Integraciones.');
+      return;
+    }
     setConfig(c => ({ ...c, [field]: !c[field] }));
   }
 
@@ -106,6 +112,11 @@ const ConfiguracionRecordatorios = () => {
             <h2 className="text-lg font-semibold">Canales de notificación</h2>
           </div>
           <div className="space-y-4">
+            {!whatsappProveedorConfigurado && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                WhatsApp todavía no está habilitado globalmente. El admin debe configurar Twilio en Integraciones.
+              </div>
+            )}
             <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
               <div className="flex items-center gap-3 font-medium">
                 <Mail className="text-gray-400" size={18} />
@@ -126,6 +137,7 @@ const ConfiguracionRecordatorios = () => {
               </div>
               <button 
                 onClick={() => handleToggle('whatsappActive')}
+                disabled={!whatsappProveedorConfigurado}
                 className="w-12 h-6 rounded-full transition-colors relative"
                 style={{ backgroundColor: config.whatsappActive ? brand.DEFAULT : '#D1D5DB' }}
               >
