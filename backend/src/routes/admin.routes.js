@@ -25,6 +25,7 @@ const estadoSchema = z.object({
 // Rutas Profesionales
 router.get('/profesionales', adminController.getProfesionales);
 router.post('/profesionales', validate(createProfSchema), adminController.createProfesional);
+router.put('/profesionales/:id', adminController.updateProfesional);
 router.patch('/profesionales/:id/estado', validate(estadoSchema), adminController.updateEstadoProfesional);
 router.delete('/profesionales/:id', adminController.deleteProfesional);
 
@@ -33,5 +34,9 @@ router.post('/profesionales/:id/impersonar', adminController.impersonarProfesion
 
 // Dashboard
 router.get('/dashboard/metricas', adminController.getMetricasGlobales);
+
+// Integraciones de pago (OAuth credentials)
+router.get('/integraciones', adminController.getIntegraciones);
+router.put('/integraciones', adminController.saveIntegraciones);
 
 module.exports = router;

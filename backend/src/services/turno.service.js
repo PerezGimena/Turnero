@@ -1,7 +1,8 @@
 const { sequelize, Turno, Paciente, Profesional, Pago } = require('../models');
 const { generarReferenciaUnica } = require('./referencia.service');
 const { calcularSlotsDisponibles } = require('./disponibilidad.service');
-const recordatorioService = require('./recordatorio.service'); // Importamos servicio emails
+const recordatorioService = require('./recordatorio.service');
+const pagoService = require('./pago.service');
 
 const crearReserva = async (slugProfesional, datosReserva) => {
   const {
@@ -68,8 +69,23 @@ const crearReserva = async (slugProfesional, datosReserva) => {
     // 5. Generar Referencia
     const referencia = await generarReferenciaUnica();
 
-    // 6. Determinar Estado
-    const estadoInicial = profesional.confirmacionAutomatica ? 'confirmado' : 'pendiente';
+    // 6. Determinar Estado inicial
+    // Si el profesional requiere pago y tiene MercadoPago configurado → pendiente_pago
+    // Si tiene confirmación automática → confirmado
+    // En cualquier otro caso → pendiente (el profesional confirma manualmente)
+    const tieneMPConfigurado =
+      profesional.pagoObligatorio &&
+      profesional.pasarelaPago === 'mercadopago' &&
+      !!profesional.pagoCredenciales;
+
+    let estadoInicial;
+    if (tieneMPConfigurado) {
+      estadoInicial = 'pendiente_pago';
+    } else if (profesional.confirmacionAutomatica) {
+      estadoInicial = 'confirmado';
+    } else {
+      estadoInicial = 'pendiente';
+    }
 
     // 7. Crear Turno
     const nuevoTurno = await Turno.create({
@@ -86,8 +102,9 @@ const crearReserva = async (slugProfesional, datosReserva) => {
       creadoManualmente: false
     }, { transaction: t });
 
-    // 8. Crear Pago pendiente si es obligatorio
-    if (profesional.pagoObligatorio) {
+    // 8. Crear registro Pago pendiente solo para pagos presenciales o pasarelas no-MP
+    // Para MercadoPago el registro Pago lo crea el webhook when payment arrives
+    if (profesional.pagoObligatorio && profesional.pasarelaPago !== 'mercadopago') {
       await Pago.create({
         turnoId: nuevoTurno.id,
         profesionalId: profesional.id,
@@ -101,16 +118,35 @@ const crearReserva = async (slugProfesional, datosReserva) => {
 
     await t.commit();
 
-    // 9. Enviar Emails (Fuera de la transacción para no bloquear si falla el SMTP)
+    // 9. Generar preferencia de MercadoPago (fuera de transacción — llama a API externa)
+    let pagoUrl = null;
+    let preferenceId = null;
+
+    if (estadoInicial === 'pendiente_pago') {
+      try {
+        const pref = await pagoService.crearPreferenciaMP(nuevoTurno, paciente, profesional);
+        pagoUrl = pref.initPoint;
+        preferenceId = pref.preferenceId;
+      } catch (mpErr) {
+        // El turno ya fue creado. Loguear el error — el admin puede reprocesar luego.
+        console.error('[TurnoService] Error al crear preferencia MP:', mpErr.message);
+      }
+    }
+
+    // 10. Enviar notificaciones (fuera de la transacción para no bloquear si falla SMTP/WA)
     if (estadoInicial === 'confirmado') {
       await recordatorioService.enviarConfirmacionReserva(nuevoTurno, paciente, profesional);
+    } else if (estadoInicial === 'pendiente_pago') {
+      await recordatorioService.enviarNotificacionPendiente(nuevoTurno, paciente, profesional);
     } else {
       await recordatorioService.enviarNotificacionPendiente(nuevoTurno, paciente, profesional);
     }
 
     return {
       turno: nuevoTurno,
-      paciente
+      paciente,
+      pagoUrl,
+      preferenceId,
     };
 
   } catch (error) {

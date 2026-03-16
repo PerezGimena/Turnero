@@ -21,6 +21,11 @@ const Admin = sequelize.define('Admin', {
   },
   nombre: {
     type: DataTypes.STRING(100)
+  },
+  configuracion: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null
   }
 }, {
   tableName: 'Admins',

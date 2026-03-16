@@ -1,5 +1,6 @@
 const app = require('./src/app');
 const sequelize = require('./src/config/database');
+const { iniciarCronJobs } = require('./src/services/cron.service');
 require('dotenv').config();
 
 const PORT = process.env.PORT || 3001;
@@ -18,6 +19,9 @@ async function startServer() {
       console.log(`📡 Ambiente: ${process.env.NODE_ENV}`);
       console.log(`📄 Documentación: http://localhost:${PORT}/api/docs (No implementado aun)`);
     });
+
+    // Iniciar cron jobs (recordatorios y detección de ausencias)
+    iniciarCronJobs();
   } catch (error) {
     console.error('❌ Error al iniciar el servidor:', error);
     process.exit(1);

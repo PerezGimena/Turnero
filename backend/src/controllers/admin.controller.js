@@ -1,7 +1,9 @@
 const { Profesional, Turno, ConfiguracionRecordatorios, ConfiguracionDia } = require('../models');
+const Admin = require('../models/Admin');
 const bcrypt = require('bcryptjs');
 const { generateToken } = require('../config/jwt');
 const { Op } = require('sequelize');
+const { getIntegracionesConfig, invalidarCache, CLAVES } = require('../services/integraciones.service');
 
 // GET /api/admin/profesionales
 const getProfesionales = async (req, res, next) => {
@@ -128,6 +130,45 @@ const updateEstadoProfesional = async (req, res, next) => {
   }
 };
 
+// PUT /api/admin/profesionales/:id
+const updateProfesional = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { nombre, apellido, email, slug, especialidad, password } = req.body;
+
+    const profesional = await Profesional.findByPk(id);
+    if (!profesional) {
+      return res.status(404).json({ ok: false, error: 'PROFESIONAL_NO_ENCONTRADO' });
+    }
+
+    if (email && email !== profesional.email) {
+      const existeEmail = await Profesional.findOne({ where: { email } });
+      if (existeEmail) return res.status(409).json({ ok: false, message: 'El email ya está en uso' });
+    }
+    if (slug && slug !== profesional.slug) {
+      const existeSlug = await Profesional.findOne({ where: { slug } });
+      if (existeSlug) return res.status(409).json({ ok: false, message: 'El slug ya está en uso' });
+    }
+
+    const updates = {};
+    if (nombre) updates.nombre = nombre;
+    if (apellido) updates.apellido = apellido;
+    if (email) updates.email = email;
+    if (slug) updates.slug = slug;
+    if (especialidad !== undefined) updates.especialidad = especialidad;
+    if (password) updates.passwordHash = await bcrypt.hash(password, 10);
+
+    await profesional.update(updates);
+
+    const data = profesional.toJSON();
+    delete data.passwordHash;
+
+    res.json({ ok: true, data, message: 'Profesional actualizado' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // DELETE /api/admin/profesionales/:id
 const deleteProfesional = async (req, res, next) => {
   try {
@@ -219,11 +260,76 @@ const impersonarProfesional = async (req, res, next) => {
   }
 };
 
+// GET /api/admin/integraciones
+const getIntegraciones = async (req, res, next) => {
+  try {
+    const config = await getIntegracionesConfig();
+
+    // Devolver estado enmascarado (no exponer secretos completos)
+    const mascarar = (val) => (val ? `${val.slice(0, 6)}${'*'.repeat(Math.max(0, val.length - 6))}` : null);
+
+    res.json({
+      ok: true,
+      data: {
+        MP_CLIENT_ID:     config.MP_CLIENT_ID     || null,
+        MP_CLIENT_SECRET: mascarar(config.MP_CLIENT_SECRET),
+        STRIPE_CLIENT_ID: config.STRIPE_CLIENT_ID || null,
+        STRIPE_SECRET_KEY: mascarar(config.STRIPE_SECRET_KEY),
+        TWILIO_ACCOUNT_SID: config.TWILIO_ACCOUNT_SID || null,
+        TWILIO_AUTH_TOKEN: mascarar(config.TWILIO_AUTH_TOKEN),
+        TWILIO_WHATSAPP_FROM: config.TWILIO_WHATSAPP_FROM || null,
+        // flags de disponibilidad
+        mpConfigurado:     !!(config.MP_CLIENT_ID && config.MP_CLIENT_SECRET),
+        stripeConfigurado: !!(config.STRIPE_CLIENT_ID && config.STRIPE_SECRET_KEY),
+        whatsappConfigurado: !!(
+          config.TWILIO_ACCOUNT_SID &&
+          config.TWILIO_AUTH_TOKEN &&
+          config.TWILIO_WHATSAPP_FROM
+        ),
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /api/admin/integraciones
+const saveIntegraciones = async (req, res, next) => {
+  try {
+    const admin = await Admin.findOne();
+    if (!admin) {
+      return res.status(404).json({ ok: false, message: 'Admin no encontrado' });
+    }
+
+    const configActual = admin.configuracion || {};
+    const nueva = { ...configActual };
+
+    // Solo actualizar las claves enviadas y no vacías
+    for (const clave of CLAVES) {
+      if (req.body[clave] !== undefined && req.body[clave] !== '') {
+        nueva[clave] = req.body[clave];
+      }
+    }
+
+    admin.configuracion = nueva;
+    admin.changed('configuracion', true); // forzar detección de cambio en columna JSON
+    await admin.save();
+    invalidarCache();
+
+    res.json({ ok: true, message: 'Credenciales de integraciones guardadas correctamente.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfesionales,
   createProfesional,
+  updateProfesional,
   updateEstadoProfesional,
   deleteProfesional,
   getMetricasGlobales,
-  impersonarProfesional
+  impersonarProfesional,
+  getIntegraciones,
+  saveIntegraciones
 };

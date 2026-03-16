@@ -1,12 +1,465 @@
+# Sistema Multi-Agente TurnoSalud
+
+> Arquitectura de agentes IA especializados para el desarrollo del sistema.
+> Última actualización del sistema de agentes: 16/03/2026 — WhatsApp SaaS listo: Twilio centralizado en Integraciones + validaciones y UI de configuración.
+
+---
+
+## ⛔ REGLAS DE CIERRE OBLIGATORIO — NO SALTEAR
+
+> Estas reglas corrigen el problema recurrente: el agente completaba el código pero **nunca actualizaba AGENT.md ni ejecutaba la auditoría de skills**.
+> Aplican SIN EXCEPCIÓN al final de cada tarea, sin importar qué tan pequeña sea.
+
+### El agente DEBE hacer esto antes de responder "listo" al usuario:
+
+1. **Agregar entrada al Registro de trabajo** (tabla debajo) con fecha, agente, tarea, archivos y estado.
+2. **Actualizar la sección de PENDIENTES** — marcar resueltos y agregar nuevos issues si los hay.
+3. **Actualizar el inventario** — si se agregó un archivo nuevo, agregarlo en la sección correspondiente.
+4. **Ejecutar Protocolo de Aprendizaje Continuo** — evaluar si el skill usado necesita mejoras. Si detecta un gap, actualizar el SKILL.md afectado y registrar el cambio.
+5. **Actualizar la fecha** `Última actualización del sistema de agentes` en la línea de arriba.
+
+### Señales de que se salteó el cierre (PROHIBIDO):
+- La última entrada del Registro es anterior a la tarea que acaba de terminar.
+- Los issues resueltos siguen figurando como pendientes.
+- Un archivo nuevo no aparece en el inventario.
+- No hay ningún comentario de auditoría de skill al final de la respuesta.
+
+---
+
+## Cómo trabajar con los agentes
+
+**Siempre activar primero el Coordinador.** El Coordinador lee este archivo, elige el agente correcto y actualiza AGENT.md al finalizar.
+
+## Agentes disponibles
+
+| Skill | Especialidad | Cuándo usarlo |
+|-------|-------------|---------------|
+| `coordinador/SKILL.md` | Arquitecto — orquesta todos los demás | SIEMPRE primero |
+| `backend/SKILL.md` | Express + Sequelize + JWT + Node.js | API, controladores, servicios |
+| `frontend/SKILL.md` | React 19 + Vite + Zustand + TanStack | Páginas, componentes, hooks |
+| `database/SKILL.md` | MySQL 8 + Sequelize + migraciones | Tablas, modelos, seeds |
+| `disenio-web/SKILL.md` | Tailwind v3.4 + Shadcn + paleta | Sistema de diseño, CSS |
+| `qa/SKILL.md` | Testing + bugs + flujos | Validaciones, checklist, issues |
+| `devops/SKILL.md` | Deploy + CI/CD + vars de entorno | Infraestructura, scripts |
+| `salud/SKILL.md` | Lógica médica + Ley 25.326 | Reglas de negocio del sector salud |
+| `saas/SKILL.md` | Multi-tenant + planes + onboarding | Modelo SaaS, admin panel |
+| `automatizacion/SKILL.md` | Cron + recordatorios + triggers | Jobs automáticos |
+| `buenas-practicas/SKILL.md` | SOLID + DRY + naming + refactor | Code review |
+| `terminos/SKILL.md` | T&C + privacidad + Ley 25.326 | Textos legales |
+| `tutoriales/SKILL.md` | Manual de uso + onboarding docs | Guías de usuario |
+| `mercadopago/SKILL.md` | Checkout Pro + webhooks MP | Integración de pagos |
+| `cyberseguridad/SKILL.md` | OWASP + JWT + rate limiting | Seguridad del sistema |
+| `websocket/SKILL.md` | Socket.io + tiempo real | Notificaciones live |
+| `webhook/SKILL.md` | Eventos externos + firma + idempotencia | Webhooks entrantes |
+| `uxui/SKILL.md` | Experiencia usuario + accesibilidad | Flujos y UX |
+| `modularizacion/SKILL.md` | Separación concerns + estructura | Arquitectura frontend/backend |
+| `escalabilidad/SKILL.md` | Performance + caché + crecimiento | Optimización a escala |
+| `db-optimizacion/SKILL.md` | Índices + EXPLAIN + N+1 | Queries lentas, normalización |
+
+## Registro de trabajo de agentes
+
+| Fecha | Agente | Tarea | Archivos | Estado |
+|-------|--------|-------|----------|--------|
+| 08/03/2026 | coordinador | Creación del sistema de skills multi-agente | turnosalud-skills/* | ✅ Completado |
+| 2026 | frontend+backend | Fase 7 — Integración API completa todas las páginas | ConfigRecordatoriosPage, ConfigPagosPage, PagosRecibidosPage, GestionProfesionalesPage, DashboardAdminPage, PacientesPage, GestionTurnoPage + admin.controller (updateProfesional) + publico.controller (getTurno/cancelar/reprogramar) | ✅ Completado |
+| 09/03/2026 | coordinador+backend | Auditoría y corrección de endpoints faltantes — 2 fixes críticos | backend/src/routes/profesional.routes.js | ✅ Completado |
+| 09/03/2026 | coordinador+frontend+backend | Implementación completa de funcionalidades pendientes: NotFoundPage, modales PacientesPage (Nuevo Turno + Enviar Mensaje), validación credenciales pago, 3 endpoints nuevos backend | NotFoundPage.jsx, pages/index.jsx, PacientesPage.jsx, ConfigPagosPage.jsx, profesional.controller.js, profesional.routes.js | ✅ Completado |
+| 09/03/2026 | coordinador+backend+automatizacion+mercadopago | WhatsApp (Twilio) + MercadoPago Checkout Pro SaaS completo + Cron jobs | config/whatsapp.js, services/whatsapp.service.js, services/pago.service.js, services/cron.service.js, controllers/webhook.controller.js, routes/webhook.routes.js, routes/index.js, routes/publico.routes.js, controllers/publico.controller.js, services/recordatorio.service.js, server.js, .env.example | ✅ Completado |
+| 09/03/2026 | coordinador+backend+database | Flujo `require_payment_to_confirm`: estado `pendiente_pago` + integración MP en `crearReserva` + respuesta con `pagoUrl` | models/Turno.js, database/migrations/20240008-add-pendiente-pago-to-turnos.js, services/turno.service.js, controllers/publico.controller.js | ✅ Completado |
+| 09/03/2026 | coordinador+frontend+backend | OAuth MercadoPago: reemplazar input Access Token por flujo OAuth2. Fix WhatsApp toggle (handleToggle no definido). Nuevos endpoints: `GET /profesional/pagos-credenciales/mp-oauth-url` (protected) + `GET /mp/oauth/callback` (public). Callback usa JWT en `state` para identificar profesional sin sesión. | ConfigPagosPage.jsx, ConfigRecordatoriosPage.jsx, profesional.controller.js, routes/index.js, profesional.routes.js, .env.example | ✅ Completado |
+| 09/03/2026 | coordinador+frontend+backend | Fix 503 en mp-oauth-url: backend retorna `oauthDisponible` flag en `GET /pagos-credenciales`. Frontend muestra botón OAuth si disponible, input manual (Access Token) como fallback si no hay `MP_CLIENT_ID`/`MP_CLIENT_SECRET` en `.env`. | ConfigPagosPage.jsx, profesional.controller.js | ✅ Completado |
+| 09/03/2026 | coordinador+frontend | Eliminado Access Token manual de ConfigPagosPage: UI siempre muestra botón OAuth "Conectar con MercadoPago". Si `oauthDisponible=false` se muestra mensaje amigable de admin-setup (sin terminología técnica). Limpiada `validarCredenciales()` a Stripe-only. Eliminado estado `mpAccessToken`. | ConfigPagosPage.jsx | ✅ Completado |
+| 09/03/2026 | coordinador+backend+frontend | OAuth Stripe Connect OAuth 2.0 Authorization Code Flow completo. Backend: `getStripeOAuthUrl` + `stripeOAuthCallback` con JWT state. Rutas: `GET /pagos-credenciales/stripe-oauth-url` (protected) + `GET /stripe/oauth/callback` (public). Frontend: reemplazados inputs manuales `sk_/pk_` por botón "Conectar con Stripe" igual que MP. `stripeOauthDisponible` desde backend. Eliminados `stripePublishableKey`, `stripeSecretKey`, `validarCredenciales()`. .env.example actualizado con `STRIPE_CLIENT_ID` + `STRIPE_SECRET_KEY`. | profesional.controller.js, profesional.routes.js, routes/index.js, ConfigPagosPage.jsx, .env.example | ✅ Completado |
+| 09/03/2026 | coordinador+backend+database+frontend | Admin panel Integraciones: Admin.configuracion (JSON), integraciones.service.js, GET/PUT /admin/integraciones, IntegracionesAdminPage.jsx, migración 20240009-add-configuracion-to-admins.js | admin.controller.js, admin.routes.js, models/Admin.js, services/integraciones.service.js, database/migrations/20240009-add-configuracion-to-admins.js, pages/admin/IntegracionesAdminPage.jsx, pages/index.jsx, router/index.jsx, AdminLayout.jsx | ✅ Completado |
+| 09/03/2026 | coordinador+backend+frontend+mercadopago | Fix `oauthDisponible` siempre `false` en getEstadoCredencialesPago. Email del profesional guardado en OAuth callback. Endpoint DELETE /pagos-credenciales (desconectarPasarela). UI conectado: email + Reconectar + Desconectar. Fix JSON Sequelize `.changed()`. Renombrada migración 20240008→20240009. mercadopago/SKILL.md reescrito a OAuth-only. | profesional.controller.js, profesional.routes.js, ConfigPagosPage.jsx, admin.controller.js, .github/skills/mercadopago/SKILL.md, migrations/20240009-add-configuracion-to-admins.js | ✅ Completado |
+| 10/03/2026 | coordinador+database+frontend | Diagnóstico completo DER + fix bug admin login (sin link a /admin/login), seeders inconsistentes (Admin1234! vs Admin123!), índices faltantes en Pagos/Turnos, setup.sql desincronizado | LoginPage.jsx, seeders/20240001-seed-admin.js, migrations/20240010-add-missing-indexes.js, scripts/setup.sql | ✅ Completado |
+| 16/03/2026 | coordinador+automatizacion+backend+qa | Auditoría de recordatorios WhatsApp: diagnóstico de no envío y checklist de configuración faltante (Twilio + flags por profesional/paciente + límites del endpoint de prueba). | AGENT.md, backend/src/config/whatsapp.js, backend/src/services/whatsapp.service.js, backend/src/services/recordatorio.service.js, backend/src/services/cron.service.js, backend/src/controllers/recordatorio.controller.js, backend/.env.example | ✅ Completado |
+| 16/03/2026 | coordinador+automatizacion+backend+frontend+admin | Implementación SaaS WhatsApp: Twilio global desde Admin Integraciones (BD), estado whatsappConfigurado en APIs, bloqueo de activación por profesional si proveedor no está listo, endpoint de prueba usando flujo real de recordatorio, desacople de WhatsApp respecto de email, y UI admin con sección Twilio. | backend/src/services/integraciones.service.js, backend/src/services/whatsapp.service.js, backend/src/controllers/admin.controller.js, backend/src/controllers/recordatorio.controller.js, backend/src/services/recordatorio.service.js, backend/.env.example, frontend/src/pages/admin/IntegracionesAdminPage.jsx, frontend/src/pages/profesional/ConfigRecordatoriosPage.jsx, AGENT.md | ✅ Completado |
+
+---
+
 # Estado del Proyecto
-- [ ] Fase 1: Estructura y Auth (COMPLETADO)
-- [ ] Fase 2: Módulo Paciente (EN PROCESO)
-- [ ] ... (resto de fases)
+
+> Última actualización: 16/03/2026 — WhatsApp SaaS listo (Twilio centralizado + estado/validaciones por API + UI admin/profesional).
+
+## Fases de Implementación
+
+| Fase | Descripción | Estado |
+|------|-------------|--------|
+| Fase 1 | Estructura base y autenticación | ✅ COMPLETADO |
+| Fase 2 | Módulo Paciente (6 páginas) | ✅ COMPLETADO |
+| Fase 3 | Dashboard y Agenda profesional | ✅ COMPLETADO (Dashboard funcional con API real) |
+| Fase 4 | Turnos pendientes y Pacientes | ✅ COMPLETADO |
+| Fase 5 | Configuración (recordatorios, pagos, perfil) | ✅ COMPLETADO |
+| Fase 6 | Admin SaaS (login, dashboard, gestión) | ✅ COMPLETADO |
+| Fase 7 | Pulido, errores, responsive | ✅ COMPLETADO — todas las páginas conectadas a API real |
+
+---
+
+## Inventario real del sistema (al 08/03/2026)
+
+### Estructura de carpetas
+
+```
+/
+├── frontend/              ← Código React (Vite)
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── pacientes/       ← 6 páginas módulo paciente
+│   │   │   ├── profesional/     ← 10 páginas módulo profesional
+│   │   │   └── admin/           ← 3 páginas módulo admin
+│   │   ├── layouts/             ← ProfesionalLayout, AdminLayout, PacienteLayout
+│   │   ├── components/layout/   ← Sidebar.jsx, TopBar.jsx
+│   │   ├── store/               ← useAuthStore.jsx (Zustand + persist)
+│   │   └── router/              ← index.jsx (createBrowserRouter)
+└── backend/               ← Express + Sequelize + MySQL
+    ├── src/
+    │   ├── controllers/         ← auth, publico, profesional, admin, webhook
+    │   ├── routes/              ← auth, publico, profesional, admin, webhook + index
+    │   ├── models/              ← 7 modelos Sequelize (Turno incluye `pendiente_pago`)
+    │   ├── services/            ← disponibilidad, turno, recordatorio, referencia, pago, whatsapp, cron
+    │   ├── middlewares/         ← auth, errorHandler, validate, rateLimiter, upload
+    │   ├── schemas/             ← auth.schema.js
+    │   └── config/              ← database, jwt, mailer, whatsapp
+    └── database/
+        ├── migrations/          ← 20240001-20240010 (20240010: índices faltantes Pagos+Turnos)
+        ├── scripts/setup.sql    ← Script SQL completo — sincronizado con migración 20240010
+        └── seeders/index.js     ← Datos de prueba (admin: admin@turnosalud.com / Admin123!)
+```
+
+---
+
+### FRONTEND — Páginas implementadas
+
+#### Módulo Paciente (`frontend/src/pages/pacientes/`)
+| Archivo | Ruta | Estado |
+|---------|------|--------|
+| `LandingProfesionalPage.jsx` | `/:slug` | ✅ Implementado — conecta a API `/api/publico/:slug` |
+| `CalendarioReservaPage.jsx` | `/:slug/reservar` | ✅ Implementado |
+| `FormularioReservaPage.jsx` | `/:slug/reservar/formulario` | ✅ Implementado |
+| `ConfirmacionPendientePage.jsx` | `/:slug/reservar/pendiente` | ✅ Implementado |
+| `TurnoConfirmadoPage.jsx` | `/:slug/reservar/confirmado` | ✅ Implementado |
+| `GestionTurnoPage.jsx` | `/:slug/turno/:id` | ✅ Implementado |
+
+#### Módulo Profesional (`frontend/src/pages/profesional/`)
+| Archivo | Ruta | Estado |
+|---------|------|--------|
+| `LoginPage.jsx` | `/profesional/login` | ✅ Implementado — axios + Zustand + JWT |
+| `RegistroPage.jsx` | `/profesional/registro` | ✅ Implementado |
+| `DashboardProfesionalPage.jsx` | `/profesional/dashboard` | ✅ Implementado — métricas reales desde API |
+| `AgendaProfesionalPage.jsx` | `/profesional/agenda` | ✅ Implementado |
+| `TurnosPendientesPage.jsx` | `/profesional/turnos-pendientes` | ✅ Implementado |
+| `PacientesPage.jsx` | `/profesional/pacientes` | ✅ Implementado |
+| `ConfigRecordatoriosPage.jsx` | `/profesional/recordatorios` | ✅ Implementado |
+| `ConfigPagosPage.jsx` | `/profesional/pagos-config` | ✅ Implementado |
+| `PagosRecibidosPage.jsx` | `/profesional/pagos-recibidos` | ✅ Implementado |
+| `PerfilPublicoPage.jsx` | `/profesional/perfil-publico` | ✅ Implementado |
+
+#### Módulo Admin (`frontend/src/pages/admin/`)
+| Archivo | Ruta | Estado |
+|---------|------|--------|
+| `AdminLoginPage.jsx` | `/admin/login` | ✅ Implementado |
+| `DashboardAdminPage.jsx` | `/admin/dashboard` | ✅ Implementado |
+| `GestionProfesionalesPage.jsx` | `/admin/profesionales` | ✅ Implementado |
+| `IntegracionesAdminPage.jsx` | `/admin/integraciones` | ✅ Implementado — configuración OAuth MP + Stripe |
+
+#### Layouts y Componentes
+| Archivo | Estado | Notas |
+|---------|--------|-------|
+| `ProfesionalLayout.jsx` | ✅ | Sidebar 240px + TopBar + Outlet |
+| `AdminLayout.jsx` | ✅ | Sidebar violeta 240px + Outlet |
+| `PacienteLayout.jsx` | ✅ | Solo `<Outlet />` sin sidebar |
+| `Sidebar.jsx` | ✅ | Zustand logout, active state, links completos |
+| `TopBar.jsx` | ✅ | Implementado |
+| `useAuthStore.jsx` | ✅ | Zustand + persist (localStorage `turnosalud-auth`) |
+| `router/index.jsx` | ✅ | createBrowserRouter, 18 rutas + 404 `NotFoundPage` |
+
+---
+
+### BACKEND — API implementada
+
+**URL base:** `http://localhost:3001/api`
+
+#### Autenticación (`/api/auth`)
+| Método | Ruta | Estado |
+|--------|------|--------|
+| POST | `/auth/profesional/login` | ✅ JWT, bcrypt |
+| POST | `/auth/profesional/registro` | ✅ Genera slug único automáticamente |
+| GET  | `/auth/profesional/me` | ✅ Auth middleware |
+| POST | `/auth/admin/login` | ✅ JWT |
+| GET  | `/auth/admin/me` | ✅ Auth middleware |
+
+#### Público — sin auth (`/api/publico`)
+| Método | Ruta | Estado |
+|--------|------|--------|
+| GET  | `/publico/:slug` | ✅ Perfil público, excluye passwordHash |
+| GET  | `/publico/:slug/horarios?fecha=` | ✅ Slots disponibles |
+| POST | `/publico/:slug/reservar` | ✅ Validación Zod — retorna `pagoUrl` si profesional usa MP |
+| POST | `/publico/:slug/pago/preferencia` | ✅ Crea preferencia MP — retorna `preferenceId` + `initPoint` |
+| POST | `/publico/:slug/pago/verificar` | ✅ Verifica pago por `paymentId` — actualiza turno si approved |
+| POST | `/webhooks/mercadopago` | ✅ Webhook MP con validación HMAC — procesa pago async |
+| GET  | `/publico/:slug/turno/:id` | ✅ Turno del paciente (datos + profesional) |
+| PATCH | `/publico/:slug/turno/:id/cancelar` | ✅ Cancela turno del paciente |
+| PATCH | `/publico/:slug/turno/:id/reprogramar` | ✅ Reprograma — verifica slot disponible |
+
+#### Profesional — requiere JWT (`/api/profesional`)
+| Método | Ruta | Estado |
+|--------|------|--------|
+| GET  | `/profesional/turnos` | ✅ Filtros: fecha, estado, paginación |
+| POST | `/profesional/turnos` | ✅ Turno manual |
+| GET  | `/profesional/turnos/:id` | ✅ |
+| PATCH | `/profesional/turnos/:id/confirmar` | ✅ |
+| PATCH | `/profesional/turnos/:id/rechazar` | ✅ Requiere motivo |
+| GET  | `/profesional/pacientes` | ✅ |
+| GET  | `/profesional/pacientes/:id` | ✅ |
+| GET  | `/profesional/perfil` | ✅ |
+| PUT  | `/profesional/perfil` | ✅ |
+| GET  | `/profesional/dashboard/metricas` | ✅ |
+| GET  | `/profesional/recordatorios/config` | ✅ |
+| PUT  | `/profesional/recordatorios/config` | ✅ |
+| POST | `/profesional/recordatorios/prueba` | ✅ |
+| GET  | `/profesional/pagos` | ✅ |
+| POST | `/profesional/pacientes` | ✅ |
+| POST | `/profesional/pacientes/:id/mensaje` | ✅ Envía email al paciente |
+| GET  | `/profesional/pagos-config` | ✅ |
+| PUT  | `/profesional/pagos-config` | ✅ |
+| GET  | `/profesional/pagos-credenciales` | ✅ Retorna status conexión + pasarela + oauthDisponible + mpEmail |
+| POST | `/profesional/pagos-credenciales` | ✅ Guarda credenciales (Stripe) |
+| DELETE | `/profesional/pagos-credenciales` | ✅ Desconecta pasarela (borra pagoCredenciales + pasarelaPago) |
+| GET  | `/profesional/pagos-credenciales/mp-oauth-url` | ✅ Genera URL de autorización OAuth MP (JWT state) |
+| GET  | `/profesional/pagos-credenciales/stripe-oauth-url` | ✅ Genera URL de autorización Stripe Connect (JWT state) |
+| GET  | `/mp/oauth/callback` | ✅ Callback público — intercambia code→token+email, guarda, redirige al frontend |
+| GET  | `/stripe/oauth/callback` | ✅ Callback público — intercambia code→token Stripe Connect, guarda, redirige |
+
+#### Admin — requiere JWT admin (`/api/admin`)
+| Método | Ruta | Estado |
+|--------|------|--------|
+| GET  | `/admin/profesionales` | ✅ Búsqueda + paginación |
+| POST | `/admin/profesionales` | ✅ |
+| PUT  | `/admin/profesionales/:id` | ✅ Editar profesional (email/slug únicos, password opcional) |
+| PATCH | `/admin/profesionales/:id/estado` | ✅ |
+| DELETE | `/admin/profesionales/:id` | ✅ |
+| POST | `/admin/profesionales/:id/impersonar` | ✅ |
+| GET  | `/admin/dashboard/metricas` | ✅ |
+| GET  | `/admin/integraciones` | ✅ Lee MP_CLIENT_ID, MP_CLIENT_SECRET, STRIPE_CLIENT_ID, STRIPE_SECRET_KEY (secrets enmascarados) |
+| PUT  | `/admin/integraciones` | ✅ Guarda credenciales OAuth en Admin.configuracion (BD) |
+
+---
+
+### BASE DE DATOS — MySQL 8 (`turnosalud`)
+
+**Tablas creadas y con datos de prueba:**
+
+| Tabla | Registros actuales | Descripción |
+|-------|-------------------|-------------|
+| `Admins` | 1 | admin@turnosalud.com |
+| `Profesionales` | 2 | juan@medico.com, ana@medica.com |
+| `ConfiguracionDias` | 14 | 7 días × 2 profesionales |
+| `ConfiguracionRecordatorios` | 2 | Config por profesional |
+| `Pacientes` | 5 | Distribuidos entre ambos profesionales |
+| `Turnos` | 10 | Estados variados |
+| `Pagos` | 0 | Sin pagos creados aún |
+
+**Credenciales de prueba:**
+- Admin: `admin@turnosalud.com` / `Admin123!`
+- Prof 1: `juan@medico.com` / `Medico123!` → slug: `juan-perez`
+- Prof 2: `ana@medica.com` / `Medico123!` → slug: `ana-gomez`
+
+---
+
+### PENDIENTES / ISSUES CONOCIDOS
+
+| Issue | Descripción | Prioridad |
+|-------|-------------|-----------|
+| ~~⚠️ `NotFoundPage` inline~~ | **RESUELTO** — Creada `NotFoundPage.jsx` con diseño real, export actualizado en `pages/index.jsx` | — |
+| ~~⚠️ MercadoPago checkout real~~ | **RESUELTO** — `pago.service.js` con Checkout Pro multi-tenant SaaS. Endpoints: `POST /:slug/pago/preferencia` + `POST /:slug/pago/verificar` + Webhook `POST /webhooks/mercadopago` con validación HMAC. Cron jobs de recordatorios y ausencias activos. | — |
+| ~~⚠️ WhatsApp recordatorios simulados~~ | **RESUELTO** — Integración Twilio WhatsApp en `whatsapp.service.js`. `recordatorio.service.js` usa ambos canales (email + WhatsApp). Variables de entorno documentadas en `.env.example`. Cron jobs activos. | — |
+| ~~⚠️ Botones sin funcionalidad en PacientesPage~~ | **RESUELTO** — Modal "Nuevo turno para este paciente" y modal "Enviar mensaje" completamente implementados | — |
+| ~~✅ ~~RESUELTO~~ Ruta `/pagos` faltante~~ | Fix: import + ruta agregada en `profesional.routes.js` | — |
+| ~~✅ ~~RESUELTO~~ Mismatch `/recordatorios/config`~~ | Fix: rutas backend actualizadas a `/recordatorios/config` | — |
+| ~~⚠️ Botón "Validar credenciales" en ConfigPagosPage~~ | **RESUELTO** — Input controlado + `validarCredenciales()` conectado a `POST /api/profesional/pagos-credenciales` | — |
+| ~~⚠️ OAuth MercadoPago — input manual Access Token~~ | **RESUELTO DEFINITIVAMENTE** — El profesional **nunca ve ni escribe un Access Token**. UI muestra siempre el botón "Conectar con MercadoPago" (OAuth 2.0). Si el admin no configuró `MP_CLIENT_ID`/`MP_CLIENT_SECRET`, se muestra mensaje amigable de setup-pendiente. Ver sección **Configuración MercadoPago OAuth** más abajo. | — |
+| ~~⚠️ `oauthDisponible` siempre `false`~~ | **RESUELTO** — `getEstadoCredencialesPago` tenía `oauthDisponible: false` hardcodeado. Ahora llama a `getIntegracionesConfig()` y computa: `!!(MP_CLIENT_ID && MP_CLIENT_SECRET)`. También retorna `mpEmail` y `stripeEmail`. | — |
+| ~~⚠️ No había panel admin para credenciales~~ | **RESUELTO** — `IntegracionesAdminPage.jsx` en `/admin/integraciones`. Admin puede configurar MP_CLIENT_ID, MP_CLIENT_SECRET, STRIPE_CLIENT_ID, STRIPE_SECRET_KEY vía UI. Se guarda en `Admin.configuracion` (JSON) con migración `20240009`. | — |
+| ~~⚠️ UI profesional sin info de cuenta conectada~~ | **RESUELTO** — Estado CONECTADO ahora muestra `Cuenta: email@mp.com` + botones [Reconectar] y [Desconectar]. Email se obtiene de `/users/me` de MP API en el momento del OAuth callback. | — |
+| ~~⚠️ Toggle WhatsApp no funciona en ConfigRecordatoriosPage~~ | **RESUELTO** — `handleToggle` se llamaba en el JSX pero nunca estaba definido. Agregada la función `handleToggle(field)` que hace `setConfig(c => ({...c, [field]: !c[field]}))`. | — |
+| ~~⚠️ Estado `pendiente_pago` faltante en Turno ENUM~~ | **RESUELTO** — Agregado al modelo Sequelize + migración `20240008`. `crearReserva` ahora detecta si el profesional tiene MP configurado y setea `pendiente_pago`, llama `crearPreferenciaMP` post-commit y retorna `{ pagoUrl, preferenceId }`. El webhook confirma el turno cuando el pago es aprobado. | — |
+| ~~⚠️ AGENT.md no se actualizaba al finalizar sesiones~~ | **RESUELTO** — Agregado bloque ⛔ REGLAS DE CIERRE OBLIGATORIO al inicio de AGENT.md con checklist de 5 pasos que el agente debe ejecutar antes de responder "listo". | — |
+
+---
+
+### CONFIGURACIÓN MERCADOPAGO OAUTH — Guía completa
+
+> Aplica solo a profesionales que usan **MercadoPago** como pasarela de pago.
+
+#### 1. Lo que configura el ADMIN DE PLATAFORMA (una sola vez, en `.env`)
+
+```env
+# MercadoPago — credenciales de la APP de la plataforma (no del profesional)
+MP_CLIENT_ID=          # ID de la app en MP Developers
+MP_CLIENT_SECRET=      # Secret de la app en MP Developers
+
+# Redirect URI que debe registrarse en la app de MP Developers:
+# → {API_URL}/api/mp/oauth/callback
+# Ejemplo: http://localhost:3001/api/mp/oauth/callback
+
+# Stripe Connect — credenciales de la plataforma
+STRIPE_CLIENT_ID=      # ID de la app Connect (ca_xxx) en Stripe Dashboard
+STRIPE_SECRET_KEY=     # Clave secreta de la plataforma (sk_live_... ó sk_test_...)
+
+# Redirect URI que debe registrarse en Stripe Dashboard → Connect → Settings:
+# → {API_URL}/api/stripe/oauth/callback
+# Ejemplo: http://localhost:3001/api/stripe/oauth/callback
+```
+
+Pasos para obtenerlas:
+1. Ir a [https://www.mercadopago.com.ar/developers/panel/app](https://www.mercadopago.com.ar/developers/panel/app)
+2. Crear una aplicación (o usar la existente)
+3. En **"Credenciales de producción"** copiar `APP_ID` (→ `MP_CLIENT_ID`) y `Client Secret` (→ `MP_CLIENT_SECRET`)
+4. En la sección **"Redirect URIs"** de la app, registrar: `{API_URL}/api/mp/oauth/callback`
+
+#### 2. Lo que hace el PROFESIONAL (una sola vez, desde su panel)
+
+**Ruta:** `/profesional/pagos-config`
+
+1. El profesional elige **MercadoPago** como pasarela.
+2. Hace clic en el botón azul **"Conectar con MercadoPago"**.
+3. Es redirigido a `https://auth.mercadopago.com/authorization?...` — la página de login de MercadoPago.
+4. Ingresa su usuario y contraseña de MercadoPago (el profesional solo ve el sitio oficial de MP).
+5. MP redirige automáticamente al callback con un `code` temporal.
+6. El backend intercambia el `code` por `accessToken` + `refreshToken` y los guarda en `pagoCredenciales` del profesional.
+7. El profesional es redirigido a `/profesional/pagos-config?mp_connected=true` — ve "✓ Cuenta conectada".
+
+**El profesional NUNCA ve, anota ni escribe un Access Token.**
+
+#### 3. Flujo técnico end-to-end
+
+```
+Profesional              Frontend               Backend                MercadoPago
+    │                       │                      │                        │
+    │── click "Conectar" ──►│                      │                        │
+    │                       │── GET /mp-oauth-url ─►│                        │
+    │                       │                      │── genera JWT state      │
+    │                       │◄─ { url, ok:true } ──│   encriptado con       │
+    │                       │                      │   profesionalId         │
+    │◄── redirect to MP ───│                      │                        │
+    │                       │                      │                        │
+    │── login en MP ─────────────────────────────────────────────────────►│
+    │                       │                      │◄── redirect /callback ─│
+    │                       │                      │    ?code=XXX&state=JWT  │
+    │                       │                      │                        │
+    │                       │                      │── verifica JWT state    │
+    │                       │                      │── POST /oauth/token ──►│
+    │                       │                      │◄── accessToken+refresh─│
+    │                       │                      │── guarda en DB          │
+    │◄── redirect /pagos-config?mp_connected=true ─│                        │
+```
+
+#### 4. Endpoints involucrados
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| GET | `/api/profesional/pagos-credenciales` | JWT | Retorna `{ statusConexion, pasarela, oauthDisponible }` |
+| GET | `/api/profesional/pagos-credenciales/mp-oauth-url` | JWT | Genera URL de autorización MP con `state` JWT firmado |
+| GET | `/api/mp/oauth/callback` | Pública | Recibe `?code&state`, intercambia token, guarda, redirige |
+
+#### 5. Estados posibles en `/profesional/pagos-config` (MP)
+
+| Estado | Condición | UI mostrada |
+|--------|-----------|-------------|
+| CONECTADO | `statusConexion === 'CONECTADO'` | "✓ Cuenta de MercadoPago conectada" |
+| Listo para conectar | `oauthDisponible === true` | Botón azul "Conectar con MercadoPago" |
+| Pendiente de admin | `oauthDisponible === false` | Mensaje amigable "La integración está siendo activada..." |
+
+---
+
+### CONFIGURACIÓN STRIPE CONNECT OAUTH — Guía completa
+
+#### 1. Lo que configura el ADMIN DE PLATAFORMA (una sola vez, en `.env`)
+
+```env
+STRIPE_CLIENT_ID=     # ca_xxx — Stripe Dashboard → Connect → Overview
+STRIPE_SECRET_KEY=    # sk_live_xxx — Stripe Dashboard → Developers → API Keys
+
+# Redirect URI a registrar en Stripe Dashboard → Connect → Settings → Redirect URIs:
+# → {API_URL}/api/stripe/oauth/callback
+```
+
+#### 2. Lo que hace el PROFESIONAL (una sola vez, desde su panel)
+
+**Ruta:** `/profesional/pagos-config` — seleccionar "Stripe"
+
+1. El profesional elige **Stripe** como pasarela.
+2. Hace clic en el botón violeta **"Conectar con Stripe"**.
+3. Es redirigido a `https://connect.stripe.com/oauth/authorize?...` — la página de Stripe.
+4. Ingresa su usuario y contraseña de Stripe (o crea cuenta nueva).
+5. Stripe redirige al callback con un `code` temporal.
+6. El backend intercambia el `code` por `access_token` + `stripe_user_id` y los guarda.
+7. El profesional ve "✓ Cuenta de Stripe conectada".
+
+**El profesional NUNCA ve `sk_live_...` ni `pk_live_...`.**
+
+#### 3. Flujo técnico end-to-end
+
+```
+URL autorización:
+https://connect.stripe.com/oauth/authorize
+  ?response_type=code
+  &client_id=ca_xxx        ← STRIPE_CLIENT_ID
+  &scope=read_write
+  &state=JWT_FIRMADO       ← contiene profesionalId, expira en 5 min
+  &redirect_uri=...
+
+Intercambio de código:
+POST https://connect.stripe.com/oauth/token
+Authorization: Bearer sk_live_xxx    ← STRIPE_SECRET_KEY
+Content-Type: application/x-www-form-urlencoded
+Body: grant_type=authorization_code&code=AUTH_CODE
+
+Respuesta: { access_token, stripe_user_id, stripe_publishable_key, refresh_token }
+```
+
+#### 4. Endpoints involucrados (Stripe)
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| GET | `/api/profesional/pagos-credenciales/stripe-oauth-url` | JWT | Genera URL de autorización Stripe con `state` JWT firmado |
+| GET | `/api/stripe/oauth/callback` | Pública | Recibe `?code&state`, intercambia token, guarda, redirige |
+
+#### 5. Estados posibles en `/profesional/pagos-config` (Stripe)
+
+| Estado | Condición | UI mostrada |
+|--------|-----------|-------------|
+| CONECTADO | `statusConexion === 'CONECTADO'` | "✓ Cuenta de Stripe conectada" |
+| Listo para conectar | `stripeOauthDisponible === true` | Botón violeta "Conectar con Stripe" |
+| Pendiente de admin | `stripeOauthDisponible === false` | Mensaje amigable de setup pendiente |
+
+---
+
+### SCRIPTS DISPONIBLES
+
+```bash
+# Backend
+cd backend
+npm run dev        # Inicia con nodemon (puerto 3001)
+npm run seed       # Inserta datos de prueba
+
+# Frontend
+cd frontend
+npm run dev        # Inicia con Vite (puerto 5173)
+
+# Base de datos
+# Ejecutar script SQL (desde PowerShell):
+Get-Content backend/database/scripts/setup.sql | & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root "-pMatias1234!"
+```
 
 # Instrucciones de Trabajo
-1. Lee siempre este archivo antes de empezar.
+1. **Lee siempre este archivo antes de empezar** — el estado puede haber cambiado desde la última sesión.
 2. Solo trabajaremos en la tarea marcada como "EN PROCESO".
 3. No escribas código de otras fases hasta que la actual esté completada y testeada.
+4. **AL TERMINAR CUALQUIER TAREA** — ejecutar el checklist de las ⛔ REGLAS DE CIERRE OBLIGATORIO que están al inicio de este archivo. Sin excepción.
+5. **El agente que NO actualice AGENT.md ni ejecute la auditoría de skills está incompleto** — la tarea no cuenta como "completada" hasta que el registro esté escrito.
+6. Si por límite de tokens no se puede completar el cierre en la misma respuesta, la primera acción de la siguiente respuesta es completar el cierre ANTES de seguir con trabajo nuevo.
 
 # PROMPT AGENTE AI — SISTEMA SAAS DE TURNOS PARA PROFESIONALES DE LA SALUD
 ## Nivel: Senior Full-Stack React 19 Developer
