@@ -3,6 +3,11 @@ const router = express.Router();
 const profesionalController = require('../controllers/profesional.controller');
 const recordatorioController = require('../controllers/recordatorio.controller');
 const pagoController = require('../controllers/pago.controller');
+const obraSocialController = require('../controllers/obraSocial.controller');
+const excepcionAgendaController = require('../controllers/excepcionAgenda.controller');
+const turnoHistorialController = require('../controllers/turnoHistorial.controller');
+const notificacionEnvioController = require('../controllers/notificacionEnvio.controller');
+const auditoriaController = require('../controllers/auditoria.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
 const { uploadFotoPerfil } = require('../middlewares/upload.middleware');
 const validate = require('../middlewares/validate.middleware');
@@ -35,6 +40,89 @@ const pacienteManualSchema = z.object({
     email: z.string().email(),
     telefono: z.string(),
     dni: z.string().optional()
+});
+
+const obraSocialCreateSchema = z.object({
+    obraSocialId: z.number().int().positive().optional(),
+    nombre: z.string().min(2).optional(),
+    codigo: z.string().max(50).optional(),
+    activa: z.boolean().optional(),
+}).refine((data) => data.obraSocialId || data.nombre, {
+    message: 'Debes enviar obraSocialId o nombre',
+});
+
+const obraSocialUpdateSchema = z.object({
+    nombre: z.string().min(2).optional(),
+    codigo: z.string().max(50).optional(),
+    activa: z.boolean().optional(),
+});
+
+const excepcionAgendaCreateSchema = z.object({
+    fecha: z.string().min(10),
+    horaInicio: z.string().min(4).max(5).optional(),
+    horaFin: z.string().min(4).max(5).optional(),
+    tipo: z.enum(['bloqueo', 'sobreturno', 'feriado']).optional(),
+    motivo: z.string().max(2000).optional(),
+});
+
+const excepcionAgendaUpdateSchema = z.object({
+    fecha: z.string().min(10).optional(),
+    horaInicio: z.string().min(4).max(5).optional(),
+    horaFin: z.string().min(4).max(5).optional(),
+    tipo: z.enum(['bloqueo', 'sobreturno', 'feriado']).optional(),
+    motivo: z.string().max(2000).optional(),
+});
+
+const turnoHistorialCreateSchema = z.object({
+    turnoId: z.number().int().positive(),
+    estadoAnterior: z.enum(['pendiente', 'pendiente_pago', 'confirmado', 'cancelado', 'ausente', 'completado']).optional(),
+    estadoNuevo: z.enum(['pendiente', 'pendiente_pago', 'confirmado', 'cancelado', 'ausente', 'completado']),
+    motivo: z.string().max(2000).optional(),
+});
+
+const turnoHistorialUpdateSchema = z.object({
+    turnoId: z.number().int().positive().optional(),
+    estadoAnterior: z.enum(['pendiente', 'pendiente_pago', 'confirmado', 'cancelado', 'ausente', 'completado']).optional(),
+    estadoNuevo: z.enum(['pendiente', 'pendiente_pago', 'confirmado', 'cancelado', 'ausente', 'completado']).optional(),
+    motivo: z.string().max(2000).optional(),
+});
+
+const notificacionEnvioCreateSchema = z.object({
+    pacienteId: z.number().int().positive().optional(),
+    turnoId: z.number().int().positive().optional(),
+    canal: z.enum(['email', 'whatsapp']),
+    tipo: z.enum(['confirmacion', 'recordatorio', 'ausencia', 'pendiente_pago', 'otro']).optional(),
+    estado: z.enum(['pendiente', 'enviado', 'fallido']).optional(),
+    errorMensaje: z.string().max(3000).optional(),
+    enviadoAt: z.string().optional(),
+});
+
+const notificacionEnvioUpdateSchema = z.object({
+    pacienteId: z.number().int().positive().optional(),
+    turnoId: z.number().int().positive().optional(),
+    canal: z.enum(['email', 'whatsapp']).optional(),
+    tipo: z.enum(['confirmacion', 'recordatorio', 'ausencia', 'pendiente_pago', 'otro']).optional(),
+    estado: z.enum(['pendiente', 'enviado', 'fallido']).optional(),
+    errorMensaje: z.string().max(3000).optional(),
+    enviadoAt: z.string().optional(),
+});
+
+const auditoriaCreateSchema = z.object({
+    entidad: z.string().min(2).max(80),
+    entidadId: z.number().int().positive().optional(),
+    accion: z.string().min(2).max(80),
+    cambiosAntes: z.any().optional(),
+    cambiosDespues: z.any().optional(),
+    metadata: z.any().optional(),
+});
+
+const auditoriaUpdateSchema = z.object({
+    entidad: z.string().min(2).max(80).optional(),
+    entidadId: z.number().int().positive().optional(),
+    accion: z.string().min(2).max(80).optional(),
+    cambiosAntes: z.any().optional(),
+    cambiosDespues: z.any().optional(),
+    metadata: z.any().optional(),
 });
 
 // --- RUTAS TURNOS ---
@@ -115,5 +203,39 @@ router.post('/pagos-credenciales', profesionalController.guardarCredencialesPago
 router.delete('/pagos-credenciales', profesionalController.desconectarPasarela);
 router.get('/pagos-credenciales/mp-oauth-url', profesionalController.getMpOAuthUrl);
 router.get('/pagos-credenciales/stripe-oauth-url', profesionalController.getStripeOAuthUrl);
+
+// --- OBRAS SOCIALES (TENANT-SAFE) ---
+router.get('/obras-sociales', obraSocialController.listObrasSociales);
+router.post('/obras-sociales', validate(obraSocialCreateSchema), obraSocialController.createObraSocial);
+router.put('/obras-sociales/:id', validate(obraSocialUpdateSchema), obraSocialController.updateObraSocial);
+router.delete('/obras-sociales/:id', obraSocialController.deleteObraSocial);
+
+// --- EXCEPCIONES DE AGENDA (TENANT-SAFE) ---
+router.get('/agenda-excepciones', excepcionAgendaController.listExcepcionesAgenda);
+router.get('/agenda-excepciones/:id', excepcionAgendaController.getExcepcionAgendaById);
+router.post('/agenda-excepciones', validate(excepcionAgendaCreateSchema), excepcionAgendaController.createExcepcionAgenda);
+router.put('/agenda-excepciones/:id', validate(excepcionAgendaUpdateSchema), excepcionAgendaController.updateExcepcionAgenda);
+router.delete('/agenda-excepciones/:id', excepcionAgendaController.deleteExcepcionAgenda);
+
+// --- HISTORIAL DE TURNOS (TENANT-SAFE) ---
+router.get('/turnos-historial', turnoHistorialController.listTurnoHistorial);
+router.get('/turnos-historial/:id', turnoHistorialController.getTurnoHistorialById);
+router.post('/turnos-historial', validate(turnoHistorialCreateSchema), turnoHistorialController.createTurnoHistorial);
+router.put('/turnos-historial/:id', validate(turnoHistorialUpdateSchema), turnoHistorialController.updateTurnoHistorial);
+router.delete('/turnos-historial/:id', turnoHistorialController.deleteTurnoHistorial);
+
+// --- LOG DE NOTIFICACIONES (TENANT-SAFE) ---
+router.get('/notificaciones-envios', notificacionEnvioController.listNotificacionesEnvio);
+router.get('/notificaciones-envios/:id', notificacionEnvioController.getNotificacionEnvioById);
+router.post('/notificaciones-envios', validate(notificacionEnvioCreateSchema), notificacionEnvioController.createNotificacionEnvio);
+router.put('/notificaciones-envios/:id', validate(notificacionEnvioUpdateSchema), notificacionEnvioController.updateNotificacionEnvio);
+router.delete('/notificaciones-envios/:id', notificacionEnvioController.deleteNotificacionEnvio);
+
+// --- AUDITORIA (TENANT-SAFE) ---
+router.get('/auditorias', auditoriaController.listAuditorias);
+router.get('/auditorias/:id', auditoriaController.getAuditoriaById);
+router.post('/auditorias', validate(auditoriaCreateSchema), auditoriaController.createAuditoria);
+router.put('/auditorias/:id', validate(auditoriaUpdateSchema), auditoriaController.updateAuditoria);
+router.delete('/auditorias/:id', auditoriaController.deleteAuditoria);
 
 module.exports = router;

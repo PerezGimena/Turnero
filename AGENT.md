@@ -1,7 +1,7 @@
 # Sistema Multi-Agente TurnoSalud
 
 > Arquitectura de agentes IA especializados para el desarrollo del sistema.
-> Última actualización del sistema de agentes: 16/03/2026 — WhatsApp SaaS listo: Twilio centralizado en Integraciones + validaciones y UI de configuración.
+> Última actualización del sistema de agentes: 17/03/2026 — Roadmap post-auditoría estabilizado y automatizado: smoke test unificado de pagos/webhooks agregado a npm scripts y validado en ejecución real.
 
 ---
 
@@ -75,12 +75,22 @@
 | 10/03/2026 | coordinador+database+frontend | Diagnóstico completo DER + fix bug admin login (sin link a /admin/login), seeders inconsistentes (Admin1234! vs Admin123!), índices faltantes en Pagos/Turnos, setup.sql desincronizado | LoginPage.jsx, seeders/20240001-seed-admin.js, migrations/20240010-add-missing-indexes.js, scripts/setup.sql | ✅ Completado |
 | 16/03/2026 | coordinador+automatizacion+backend+qa | Auditoría de recordatorios WhatsApp: diagnóstico de no envío y checklist de configuración faltante (Twilio + flags por profesional/paciente + límites del endpoint de prueba). | AGENT.md, backend/src/config/whatsapp.js, backend/src/services/whatsapp.service.js, backend/src/services/recordatorio.service.js, backend/src/services/cron.service.js, backend/src/controllers/recordatorio.controller.js, backend/.env.example | ✅ Completado |
 | 16/03/2026 | coordinador+automatizacion+backend+frontend+admin | Implementación SaaS WhatsApp: Twilio global desde Admin Integraciones (BD), estado whatsappConfigurado en APIs, bloqueo de activación por profesional si proveedor no está listo, endpoint de prueba usando flujo real de recordatorio, desacople de WhatsApp respecto de email, y UI admin con sección Twilio. | backend/src/services/integraciones.service.js, backend/src/services/whatsapp.service.js, backend/src/controllers/admin.controller.js, backend/src/controllers/recordatorio.controller.js, backend/src/services/recordatorio.service.js, backend/.env.example, frontend/src/pages/admin/IntegracionesAdminPage.jsx, frontend/src/pages/profesional/ConfigRecordatoriosPage.jsx, AGENT.md | ✅ Completado |
+| 16/03/2026 | coordinador+backend+frontend+database+db-optimizacion | Auditoría integral de arquitectura Frontend/Backend + evaluación Sequelize vs SQL + revisión de normalización y tablas recomendadas para escalar SaaS. | AGENT.md | ✅ Completado |
+| 16/03/2026 | coordinador+backend+database+db-optimizacion | Optimización SaaS end-to-end: migración 20240011 con tablas faltantes (obras sociales, auditoría, historial, excepciones agenda, log notificaciones), índices compuestos para filtros por fecha/estado, y filtros backend por defecto (hoy a +14 días) en turnos/pacientes/pagos. | backend/database/migrations/20240011-saas-performance-normalization.js, backend/database/scripts/setup.sql, backend/src/controllers/profesional.controller.js, backend/src/controllers/pago.controller.js, backend/src/services/turno.service.js, backend/src/services/disponibilidad.service.js, AGENT.md | ✅ Completado |
+| 16/03/2026 | coordinador+backend+database | Implementación de modelos Sequelize faltantes para tablas nuevas de escalado SaaS + asociaciones multi-tenant por profesional (N:N obras sociales, historial turnos, excepciones agenda, notificaciones, auditoría). | backend/src/models/ObraSocial.js, backend/src/models/ProfesionalObraSocial.js, backend/src/models/TurnoHistorial.js, backend/src/models/Auditoria.js, backend/src/models/ExcepcionAgenda.js, backend/src/models/NotificacionEnvio.js, backend/src/models/index.js, AGENT.md | ✅ Completado |
+| 16/03/2026 | coordinador+backend+database | Implementación de servicios y endpoints CRUD para ObraSocial, ExcepcionAgenda, TurnoHistorial, NotificacionEnvio y Auditoria con filtros tenant por req.user.sub en todas las consultas y validación Zod en escrituras. | backend/src/services/obraSocial.service.js, backend/src/services/excepcionAgenda.service.js, backend/src/services/turnoHistorial.service.js, backend/src/services/notificacionEnvio.service.js, backend/src/services/auditoria.service.js, backend/src/controllers/obraSocial.controller.js, backend/src/controllers/excepcionAgenda.controller.js, backend/src/controllers/turnoHistorial.controller.js, backend/src/controllers/notificacionEnvio.controller.js, backend/src/controllers/auditoria.controller.js, backend/src/routes/profesional.routes.js, AGENT.md | ✅ Completado |
+| 17/03/2026 | coordinador+backend+database+saas+mercadopago+webhook | Auditoría crítica de arquitectura de pagos para SaaS de salud: validación de modelo real (centralizado vs descentralizado), revisión OAuth2/Connect, webhooks, conciliación, multi-tenancy y propuesta de refactor antes de producción. | AGENT.md, backend/src/controllers/profesional.controller.js, backend/src/controllers/admin.controller.js, backend/src/services/pago.service.js, backend/src/services/turno.service.js, backend/src/controllers/webhook.controller.js, backend/src/routes/index.js, backend/src/routes/webhook.routes.js, backend/src/models/Profesional.js, backend/src/models/Pago.js, backend/database/migrations/20240002-create-profesional.js, backend/database/migrations/20240006-create-pago.js, backend/database/migrations/20240009-add-configuracion-to-admins.js | ✅ Completado |
+| 17/03/2026 | coordinador+backend+database+webhook+saas | Correcciones críticas post-auditoría: `planActivo` obligatorio en reserva pública, detección correcta de conexión Stripe, validación estricta de firma webhook MP en producción, eliminación de resolución insegura por iteración de tenants, endpoint base `/webhooks/stripe`, y constraint único `pasarela+transaccionId` en Pagos. | backend/src/services/turno.service.js, backend/src/controllers/publico.controller.js, backend/src/controllers/profesional.controller.js, backend/src/controllers/webhook.controller.js, backend/src/routes/webhook.routes.js, backend/src/services/pago.service.js, backend/database/migrations/20240012-add-unique-pagos-pasarela-transaccion.js, backend/database/scripts/setup.sql, AGENT.md | ✅ Completado |
+| 17/03/2026 | coordinador+backend+database+stripe+saas | Continuación de roadmap: ejecución de migraciones pendientes, Stripe end-to-end (checkout session + verificación + webhook firmado), y separación de conexiones OAuth en `oauth_connections` con servicio dedicado y compatibilidad legacy. | backend/database/migrations/20240013-create-oauth-connections.js, backend/src/models/OAuthConnection.js, backend/src/services/oauthConnection.service.js, backend/src/models/index.js, backend/src/services/pago.service.js, backend/src/controllers/publico.controller.js, backend/src/routes/publico.routes.js, backend/src/controllers/profesional.controller.js, backend/src/controllers/webhook.controller.js, backend/src/services/turno.service.js, backend/src/app.js, backend/database/scripts/setup.sql, backend/.env.example, AGENT.md | ✅ Completado |
+| 17/03/2026 | coordinador+backend+webhook | Estabilización final: webhook Stripe toma `STRIPE_SECRET_KEY` desde Integraciones (BD) con fallback env, y smoke tests HTTP locales confirman `200` en Stripe firmado y `401` en MP sin firma en producción. | backend/src/controllers/webhook.controller.js, AGENT.md | ✅ Completado |
+| 17/03/2026 | coordinador+backend+qa+stripe | Validación end-to-end interna de cobro Stripe via webhook: creación controlada de profesional/paciente/turno en BD, procesamiento `checkout.session.completed`, verificación de transición `turno -> confirmado`, creación de `Pago` aprobado e idempotencia sin duplicados en segundo evento; limpieza de datos de prueba aplicada. | backend/src/services/pago.service.js, backend/src/models/Pago.js, backend/src/models/Turno.js, AGENT.md | ✅ Completado |
+| 17/03/2026 | coordinador+backend+qa+devops | Cierre operativo: script automático `scripts/smoke-payments.js` para validar webhooks Stripe/MP + flujo Stripe interno con idempotencia y cleanup; integrado a `npm test` y `npm run test:payments`. | backend/scripts/smoke-payments.js, backend/package.json, AGENT.md | ✅ Completado |
 
 ---
 
 # Estado del Proyecto
 
-> Última actualización: 16/03/2026 — WhatsApp SaaS listo (Twilio centralizado + estado/validaciones por API + UI admin/profesional).
+> Última actualización: 17/03/2026 — Roadmap post-auditoría estabilizado y con verificación automatizada reproducible por npm para pagos y webhooks.
 
 ## Fases de Implementación
 
@@ -116,14 +126,14 @@
     ├── src/
     │   ├── controllers/         ← auth, publico, profesional, admin, webhook
     │   ├── routes/              ← auth, publico, profesional, admin, webhook + index
-    │   ├── models/              ← 7 modelos Sequelize (Turno incluye `pendiente_pago`)
+    │   ├── models/              ← 14 modelos Sequelize (incluye normalización, auditoría, trazabilidad SaaS y OAuthConnections)
     │   ├── services/            ← disponibilidad, turno, recordatorio, referencia, pago, whatsapp, cron
     │   ├── middlewares/         ← auth, errorHandler, validate, rateLimiter, upload
     │   ├── schemas/             ← auth.schema.js
     │   └── config/              ← database, jwt, mailer, whatsapp
     └── database/
-        ├── migrations/          ← 20240001-20240010 (20240010: índices faltantes Pagos+Turnos)
-        ├── scripts/setup.sql    ← Script SQL completo — sincronizado con migración 20240010
+        ├── migrations/          ← 20240001-20240013 (incluye hardening pagos + OAuthConnections)
+        ├── scripts/setup.sql    ← Script SQL completo — sincronizado hasta migración 20240013
         └── seeders/index.js     ← Datos de prueba (admin: admin@turnosalud.com / Admin123!)
 ```
 

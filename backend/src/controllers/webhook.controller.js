@@ -8,7 +8,9 @@
 //  Respondemos 200 inmediatamente y procesamos de forma asíncrona.
 // ============================================================
 const crypto    = require('crypto');
+const Stripe = require('stripe');
 const pagoService = require('../services/pago.service');
+const { getIntegracionesConfig } = require('../services/integraciones.service');
 
 /**
  * Valida la firma HMAC enviada por MercadoPago en el header x-signature.
@@ -21,7 +23,9 @@ const pagoService = require('../services/pago.service');
  */
 const _firmaValida = (req) => {
   const secret = process.env.MP_WEBHOOK_SECRET;
-  if (!secret) return true; // Sin secret → solo para desarrollo
+  if (!secret) {
+    return process.env.NODE_ENV !== 'production';
+  }
 
   const xSignature = req.headers['x-signature'];
   const xRequestId = req.headers['x-request-id'] || '';
@@ -53,16 +57,16 @@ const _firmaValida = (req) => {
  * Recibe y procesa notificaciones de pago de MercadoPago.
  */
 const recibirWebhookMP = async (req, res) => {
-  // Responder 200 de inmediato para evitar reintentos innecesarios de MP
-  res.status(200).json({ received: true });
-
   const { type, data, action } = req.body;
 
   // Validar firma antes de procesar
   if (!_firmaValida(req)) {
     console.warn('[Webhook MP] ⚠️  Firma inválida — notificación ignorada');
-    return;
+    return res.status(401).json({ received: false, error: 'FIRMA_INVALIDA' });
   }
+
+  // Responder 200 una vez validada la autenticidad para evitar reintentos innecesarios
+  res.status(200).json({ received: true });
 
   if (type !== 'payment' || !data?.id) {
     // Ignorar notificaciones que no sean de pago (merchant_order, plan, etc.)
@@ -80,4 +84,41 @@ const recibirWebhookMP = async (req, res) => {
   });
 };
 
-module.exports = { recibirWebhookMP };
+/**
+ * POST /api/webhooks/stripe
+ * Recibe y procesa eventos Stripe con validación de firma.
+ */
+const recibirWebhookStripe = async (req, res) => {
+  if (process.env.NODE_ENV === 'production' && !process.env.STRIPE_WEBHOOK_SECRET) {
+    return res.status(503).json({ received: false, error: 'STRIPE_WEBHOOK_SECRET_NO_CONFIGURADO' });
+  }
+
+  try {
+    const integraciones = await getIntegracionesConfig();
+    const stripeSecretKey = integraciones?.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
+    const signature = req.headers['stripe-signature'];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!signature || !webhookSecret || !stripeSecretKey) {
+      return res.status(400).json({ received: false, error: 'STRIPE_SIGNATURE_INVALIDA' });
+    }
+
+    const stripe = new Stripe(stripeSecretKey);
+    const event = stripe.webhooks.constructEvent(req.body, signature, webhookSecret);
+
+    setImmediate(async () => {
+      try {
+        await pagoService.procesarWebhookStripeEvent(event);
+        console.log(`[Webhook Stripe] ✅ Evento procesado: ${event.type}`);
+      } catch (error) {
+        console.error(`[Webhook Stripe] ❌ Error procesando evento ${event.type}:`, error.message);
+      }
+    });
+
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    console.warn('[Webhook Stripe] ⚠️ Firma inválida o payload incorrecto:', error.message);
+    return res.status(400).json({ received: false, error: 'STRIPE_EVENTO_INVALIDO' });
+  }
+};
+
+module.exports = { recibirWebhookMP, recibirWebhookStripe };

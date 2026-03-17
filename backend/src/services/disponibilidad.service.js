@@ -72,7 +72,7 @@ const calcularSlotsDisponibles = async (profesionalId, fechaStr) => {
       profesionalId,
       fecha: fechaStr,
       estado: {
-        [Op.notIn]: ['cancelado', 'rechazado'] // Asumo 'rechazado' no está en el ENUM, pero 'cancelado' libera
+        [Op.notIn]: ['cancelado']
       }
     }
   });

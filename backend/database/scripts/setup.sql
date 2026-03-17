@@ -158,6 +158,139 @@ CREATE TABLE IF NOT EXISTS ConfiguracionRecordatorios (
     FOREIGN KEY (profesionalId) REFERENCES Profesionales(id) ON DELETE CASCADE
 );
 
+-- Conexiones OAuth por profesional y proveedor
+CREATE TABLE IF NOT EXISTS OAuthConnections (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    profesionalId INT NOT NULL,
+    provider ENUM('mercadopago','stripe') NOT NULL,
+    accessToken TEXT,
+    refreshToken TEXT,
+    providerUserId VARCHAR(255),
+    providerEmail VARCHAR(255),
+    publishableKey VARCHAR(255),
+    tokenExpiresAt DATETIME,
+    status ENUM('conectado','desconectado','error') DEFAULT 'conectado',
+    metadata JSON,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (profesionalId) REFERENCES Profesionales(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_oauthconnections_profesional_provider (profesionalId, provider),
+    INDEX idx_oauthconnections_provider_status (provider, status)
+);
+
+-- ============================================================
+--  Esquema SaaS optimizado (migracion 20240011)
+-- ============================================================
+
+-- Catalogo de obras sociales
+CREATE TABLE IF NOT EXISTS ObrasSociales (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(200) NOT NULL UNIQUE,
+    codigo VARCHAR(50),
+    activa BOOLEAN DEFAULT true,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Relacion N:N entre profesionales y obras sociales
+CREATE TABLE IF NOT EXISTS ProfesionalObrasSociales (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    profesionalId INT NOT NULL,
+    obraSocialId INT NOT NULL,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (profesionalId) REFERENCES Profesionales(id) ON DELETE CASCADE,
+    FOREIGN KEY (obraSocialId) REFERENCES ObrasSociales(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_profesional_obra_social (profesionalId, obraSocialId),
+    INDEX idx_pos_profesional (profesionalId),
+    INDEX idx_pos_obra_social (obraSocialId)
+);
+
+-- Historial de cambios de estado de turnos
+CREATE TABLE IF NOT EXISTS TurnoHistoriales (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    turnoId INT NOT NULL,
+    estadoAnterior ENUM('pendiente','pendiente_pago','confirmado','cancelado','ausente','completado'),
+    estadoNuevo ENUM('pendiente','pendiente_pago','confirmado','cancelado','ausente','completado') NOT NULL,
+    motivo TEXT,
+    actorTipo ENUM('admin','profesional','sistema') DEFAULT 'sistema',
+    actorId INT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (turnoId) REFERENCES Turnos(id) ON DELETE CASCADE,
+    INDEX idx_turno_historial_turno_fecha (turnoId, createdAt),
+    INDEX idx_turno_historial_estado_fecha (estadoNuevo, createdAt)
+);
+
+-- Auditoria general de entidades
+CREATE TABLE IF NOT EXISTS Auditorias (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    actorTipo ENUM('admin','profesional','sistema') DEFAULT 'sistema',
+    actorId INT,
+    entidad VARCHAR(80) NOT NULL,
+    entidadId INT,
+    accion VARCHAR(80) NOT NULL,
+    cambiosAntes JSON,
+    cambiosDespues JSON,
+    metadata JSON,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_auditoria_entidad_fecha (entidad, entidadId, createdAt),
+    INDEX idx_auditoria_actor_fecha (actorTipo, actorId, createdAt)
+);
+
+-- Excepciones de agenda (bloqueos, sobreturnos, feriados)
+CREATE TABLE IF NOT EXISTS ExcepcionesAgenda (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    profesionalId INT NOT NULL,
+    fecha DATE NOT NULL,
+    horaInicio VARCHAR(5),
+    horaFin VARCHAR(5),
+    tipo ENUM('bloqueo','sobreturno','feriado') DEFAULT 'bloqueo',
+    motivo TEXT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (profesionalId) REFERENCES Profesionales(id) ON DELETE CASCADE,
+    INDEX idx_excepciones_agenda_prof_fecha_tipo (profesionalId, fecha, tipo)
+);
+
+-- Log de envios de notificaciones
+CREATE TABLE IF NOT EXISTS NotificacionesEnvios (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    profesionalId INT NOT NULL,
+    pacienteId INT,
+    turnoId INT,
+    canal ENUM('email','whatsapp') NOT NULL,
+    tipo ENUM('confirmacion','recordatorio','ausencia','pendiente_pago','otro') DEFAULT 'otro',
+    estado ENUM('pendiente','enviado','fallido') DEFAULT 'pendiente',
+    errorMensaje TEXT,
+    enviadoAt DATETIME,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (profesionalId) REFERENCES Profesionales(id) ON DELETE CASCADE,
+    FOREIGN KEY (pacienteId) REFERENCES Pacientes(id) ON DELETE SET NULL,
+    FOREIGN KEY (turnoId) REFERENCES Turnos(id) ON DELETE SET NULL,
+    INDEX idx_notif_prof_fecha (profesionalId, createdAt),
+    INDEX idx_notif_turno_canal (turnoId, canal),
+    INDEX idx_notif_estado_fecha (estado, createdAt)
+);
+
+-- ============================================================
+--  Indices adicionales para escala (migracion 20240011)
+-- ============================================================
+
+CREATE INDEX idx_config_dias_profesional_dia ON ConfiguracionDias(profesionalId, dia);
+CREATE INDEX idx_pacientes_prof_apellido_nombre ON Pacientes(profesionalId, apellido, nombre);
+CREATE INDEX idx_pacientes_prof_created ON Pacientes(profesionalId, createdAt);
+CREATE INDEX idx_turnos_prof_estado_fecha_hora ON Turnos(profesionalId, estado, fecha, horaInicio);
+CREATE INDEX idx_turnos_prof_fecha_hora ON Turnos(profesionalId, fecha, horaInicio);
+CREATE INDEX idx_turnos_paciente_fecha ON Turnos(pacienteId, fecha);
+CREATE INDEX idx_pagos_prof_created ON Pagos(profesionalId, createdAt);
+CREATE INDEX idx_pagos_estado_created ON Pagos(estado, createdAt);
+CREATE UNIQUE INDEX uq_pagos_pasarela_transaccion ON Pagos(pasarela, transaccionId);
+CREATE INDEX idx_profesionales_plan_created ON Profesionales(planActivo, createdAt);
+CREATE INDEX idx_profesionales_especialidad_plan ON Profesionales(especialidad, planActivo);
+
 -- ============================================================
 --  Los datos de prueba (seed) con contraseñas hasheadas se
 --  insertan ejecutando el seeder Node.js:

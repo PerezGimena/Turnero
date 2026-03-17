@@ -7,6 +7,13 @@ const Paciente = require('./Paciente');
 const Turno = require('./Turno');
 const Pago = require('./Pago');
 const ConfiguracionRecordatorios = require('./ConfiguracionRecordatorios');
+const ObraSocial = require('./ObraSocial');
+const ProfesionalObraSocial = require('./ProfesionalObraSocial');
+const TurnoHistorial = require('./TurnoHistorial');
+const Auditoria = require('./Auditoria');
+const ExcepcionAgenda = require('./ExcepcionAgenda');
+const NotificacionEnvio = require('./NotificacionEnvio');
+const OAuthConnection = require('./OAuthConnection');
 
 // Definir asociaciones
 
@@ -42,6 +49,47 @@ Pago.belongsTo(Paciente, { foreignKey: 'pacienteId' });
 Turno.hasOne(Pago, { foreignKey: 'turnoId', as: 'pago' });
 Pago.belongsTo(Turno, { foreignKey: 'turnoId' });
 
+// Profesional <-> ObraSocial (N:N) vía tabla pivote
+Profesional.belongsToMany(ObraSocial, {
+  through: ProfesionalObraSocial,
+  foreignKey: 'profesionalId',
+  otherKey: 'obraSocialId',
+  as: 'obrasSociales',
+});
+ObraSocial.belongsToMany(Profesional, {
+  through: ProfesionalObraSocial,
+  foreignKey: 'obraSocialId',
+  otherKey: 'profesionalId',
+  as: 'profesionales',
+});
+
+Profesional.hasMany(ProfesionalObraSocial, { foreignKey: 'profesionalId', as: 'profesionalObrasSociales' });
+ProfesionalObraSocial.belongsTo(Profesional, { foreignKey: 'profesionalId', as: 'profesional' });
+ObraSocial.hasMany(ProfesionalObraSocial, { foreignKey: 'obraSocialId', as: 'profesionalesObraSocial' });
+ProfesionalObraSocial.belongsTo(ObraSocial, { foreignKey: 'obraSocialId', as: 'obraSocial' });
+
+// Turno -> TurnoHistorial (1:N)
+Turno.hasMany(TurnoHistorial, { foreignKey: 'turnoId', as: 'historial' });
+TurnoHistorial.belongsTo(Turno, { foreignKey: 'turnoId', as: 'turno' });
+
+// Profesional -> ExcepcionAgenda (1:N)
+Profesional.hasMany(ExcepcionAgenda, { foreignKey: 'profesionalId', as: 'excepcionesAgenda' });
+ExcepcionAgenda.belongsTo(Profesional, { foreignKey: 'profesionalId', as: 'profesional' });
+
+// Profesional/Paciente/Turno -> NotificacionEnvio
+Profesional.hasMany(NotificacionEnvio, { foreignKey: 'profesionalId', as: 'notificacionesEnvios' });
+NotificacionEnvio.belongsTo(Profesional, { foreignKey: 'profesionalId', as: 'profesional' });
+
+Paciente.hasMany(NotificacionEnvio, { foreignKey: 'pacienteId', as: 'notificacionesEnvios' });
+NotificacionEnvio.belongsTo(Paciente, { foreignKey: 'pacienteId', as: 'paciente' });
+
+Turno.hasMany(NotificacionEnvio, { foreignKey: 'turnoId', as: 'notificacionesEnvios' });
+NotificacionEnvio.belongsTo(Turno, { foreignKey: 'turnoId', as: 'turno' });
+
+// Profesional -> OAuthConnection (1:N)
+Profesional.hasMany(OAuthConnection, { foreignKey: 'profesionalId', as: 'oauthConnections' });
+OAuthConnection.belongsTo(Profesional, { foreignKey: 'profesionalId', as: 'profesional' });
+
 module.exports = {
   sequelize,
   Admin,
@@ -50,5 +98,12 @@ module.exports = {
   Paciente,
   Turno,
   Pago,
-  ConfiguracionRecordatorios
+  ConfiguracionRecordatorios,
+  ObraSocial,
+  ProfesionalObraSocial,
+  TurnoHistorial,
+  Auditoria,
+  ExcepcionAgenda,
+  NotificacionEnvio,
+  OAuthConnection,
 };

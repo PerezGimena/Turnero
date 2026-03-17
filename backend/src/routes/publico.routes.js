@@ -34,5 +34,8 @@ router.patch('/:slug/turno/:id/reprogramar', publicoController.reprogramarTurnoP
 router.post('/:slug/pago/preferencia', publicoController.crearPreferenciaPago);
 // POST /:slug/pago/verificar   → verifica pago luego del back_url de MP
 router.post('/:slug/pago/verificar', publicoController.verificarPago);
+// Flujo Stripe Checkout
+router.post('/:slug/pago/stripe/session', publicoController.crearCheckoutStripe);
+router.post('/:slug/pago/stripe/verificar', publicoController.verificarPagoStripe);
 
 module.exports = router;
