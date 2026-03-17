@@ -12,36 +12,97 @@ const {
 const {
   calcularSlotsDisponibles,
 } = require("../services/disponibilidad.service");
+const {
+  getConnection,
+  upsertConnection,
+  disconnectByProfesional,
+} = require('../services/oauthConnection.service');
+
+const ESTADOS_ACTIVOS_TURNO = ["pendiente", "pendiente_pago", "confirmado"];
+
+const _toDateOnly = (date) => {
+  const d = new Date(date);
+  return d.toISOString().split("T")[0];
+};
+
+const _getRangeFromQuery = (fechaDesde, fechaHasta, diasDefault = 14) => {
+  const hoy = new Date();
+  const porDefectoDesde = _toDateOnly(hoy);
+
+  const limite = new Date(hoy);
+  limite.setDate(limite.getDate() + diasDefault);
+  const porDefectoHasta = _toDateOnly(limite);
+
+  return {
+    fechaDesde: fechaDesde || porDefectoDesde,
+    fechaHasta: fechaHasta || porDefectoHasta,
+  };
+};
 
 // --- TURNOS ---
 
 const getTurnos = async (req, res, next) => {
   try {
     const profesionalId = req.user.sub;
-    const { fecha, estado, pagina = 1, porPagina = 20 } = req.query;
+    const {
+      fecha,
+      estado,
+      busqueda,
+      fechaDesde,
+      fechaHasta,
+      pagina = 1,
+      porPagina,
+      limit,
+      incluirPasados = "false",
+    } = req.query;
 
     const where = { profesionalId };
-    if (fecha) where.fecha = fecha;
+    if (fecha) {
+      where.fecha = fecha;
+    } else {
+      const range = _getRangeFromQuery(fechaDesde, fechaHasta, 14);
+      where.fecha = {
+        [Op.between]: [range.fechaDesde, range.fechaHasta],
+      };
+
+      if (incluirPasados === "true") {
+        delete where.fecha;
+      }
+    }
+
     if (estado) where.estado = estado;
 
-    const limit = parseInt(porPagina);
-    const offset = (parseInt(pagina) - 1) * limit;
+    const pageSizeInput = porPagina || limit || 20;
+    const pageSize = Math.min(Math.max(parseInt(pageSizeInput, 10) || 20, 1), 100);
+    const paginaNum = Math.max(parseInt(pagina, 10) || 1, 1);
+    const offset = (paginaNum - 1) * pageSize;
+
+    const includePaciente = {
+      model: Paciente,
+      as: "paciente",
+      attributes: ["id", "nombre", "apellido", "email"],
+    };
+
+    if (busqueda) {
+      includePaciente.where = {
+        [Op.or]: [
+          { nombre: { [Op.like]: `%${busqueda}%` } },
+          { apellido: { [Op.like]: `%${busqueda}%` } },
+          { email: { [Op.like]: `%${busqueda}%` } },
+        ],
+      };
+      includePaciente.required = true;
+    }
 
     const { count, rows } = await Turno.findAndCountAll({
       where,
-      limit,
+      limit: pageSize,
       offset,
       order: [
         ["fecha", "ASC"],
         ["horaInicio", "ASC"],
       ],
-      include: [
-        {
-          model: Paciente,
-          as: "paciente",
-          attributes: ["id", "nombre", "apellido", "email"],
-        },
-      ],
+      include: [includePaciente],
     });
 
     res.json({
@@ -49,9 +110,9 @@ const getTurnos = async (req, res, next) => {
       data: rows,
       pagination: {
         total: count,
-        pagina: parseInt(pagina),
-        porPagina: limit,
-        totalPaginas: Math.ceil(count / limit),
+        pagina: paginaNum,
+        porPagina: pageSize,
+        totalPaginas: Math.ceil(count / pageSize),
       },
     });
   } catch (error) {
@@ -254,7 +315,14 @@ const reprogramarTurno = async (req, res, next) => {
 const getPacientes = async (req, res, next) => {
   try {
     const profesionalId = req.user.sub;
-    const { busqueda, pagina = 1, porPagina = 20 } = req.query;
+    const {
+      busqueda,
+      fechaDesde,
+      fechaHasta,
+      scope = "proximos",
+      pagina = 1,
+      porPagina = 20,
+    } = req.query;
 
     const where = { profesionalId };
     if (busqueda) {
@@ -266,11 +334,48 @@ const getPacientes = async (req, res, next) => {
       ];
     }
 
-    const limit = parseInt(porPagina);
-    const offset = (parseInt(pagina) - 1) * limit;
+    const limit = Math.min(Math.max(parseInt(porPagina, 10) || 20, 1), 100);
+    const paginaNum = Math.max(parseInt(pagina, 10) || 1, 1);
+    const offset = (paginaNum - 1) * limit;
+
+    const include = [];
+    const rango = _getRangeFromQuery(fechaDesde, fechaHasta, 14);
+
+    if (scope !== "todos") {
+      const whereTurno = {
+        profesionalId,
+      };
+
+      if (scope === "pasados") {
+        const ayer = new Date();
+        ayer.setDate(ayer.getDate() - 1);
+        whereTurno.fecha = {
+          [Op.between]: [
+            fechaDesde || _toDateOnly(new Date(ayer.getFullYear(), ayer.getMonth(), ayer.getDate() - 30)),
+            fechaHasta || _toDateOnly(ayer),
+          ],
+        };
+      } else {
+        whereTurno.fecha = {
+          [Op.between]: [rango.fechaDesde, rango.fechaHasta],
+        };
+        whereTurno.estado = { [Op.in]: ESTADOS_ACTIVOS_TURNO };
+      }
+
+      include.push({
+        model: Turno,
+        as: "turnos",
+        attributes: [],
+        where: whereTurno,
+        required: true,
+      });
+    }
 
     const { count, rows } = await Paciente.findAndCountAll({
       where,
+      include,
+      distinct: true,
+      subQuery: false,
       limit,
       offset,
       order: [
@@ -284,7 +389,7 @@ const getPacientes = async (req, res, next) => {
       data: rows,
       pagination: {
         total: count,
-        pagina: parseInt(pagina),
+        pagina: paginaNum,
         porPagina: limit,
         totalPaginas: Math.ceil(count / limit),
       },
@@ -623,12 +728,22 @@ const guardarCredencialesPago = async (req, res, next) => {
       });
     }
 
-    const credencialesObj = pasarela === 'mercadopago'
-      ? { mercadopago: { accessToken } }
-      : { stripe: { secretKey: accessToken, publishableKey } };
+    if (!['mercadopago', 'stripe'].includes(pasarela)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'PASARELA_INVALIDA',
+        message: 'Pasarela no soportada',
+      });
+    }
+
+    await upsertConnection(profesionalId, pasarela, {
+      accessToken,
+      publishableKey: pasarela === 'stripe' ? publishableKey || null : null,
+      status: 'conectado',
+    });
 
     await Profesional.update(
-      { pagoCredenciales: JSON.stringify(credencialesObj), pasarelaPago: pasarela },
+      { pasarelaPago: pasarela },
       { where: { id: profesionalId } }
     );
 
@@ -641,9 +756,11 @@ const guardarCredencialesPago = async (req, res, next) => {
 const getEstadoCredencialesPago = async (req, res, next) => {
   try {
     const profesionalId = req.user.sub;
-    const [profesional, intConf] = await Promise.all([
+    const [profesional, intConf, mpConn, stripeConn] = await Promise.all([
       Profesional.findByPk(profesionalId, { attributes: ['pagoCredenciales', 'pasarelaPago'] }),
       getIntegracionesConfig(),
+      getConnection(profesionalId, 'mercadopago'),
+      getConnection(profesionalId, 'stripe'),
     ]);
 
     const credenciales = profesional?.pagoCredenciales
@@ -652,8 +769,14 @@ const getEstadoCredencialesPago = async (req, res, next) => {
           : profesional.pagoCredenciales)
       : null;
 
-    const mpConectado = !!credenciales?.mercadopago?.accessToken;
-    const stripeConectado = !!credenciales?.stripe?.accountId;
+    const mpConectado = !!(mpConn?.accessToken || credenciales?.mercadopago?.accessToken);
+    const stripeConectado = !!(
+      stripeConn?.accessToken ||
+      stripeConn?.providerUserId ||
+      credenciales?.stripe?.stripeUserId ||
+      credenciales?.stripe?.accountId ||
+      credenciales?.stripe?.accessToken
+    );
 
     res.json({
       ok: true,
@@ -662,9 +785,10 @@ const getEstadoCredencialesPago = async (req, res, next) => {
         pasarela: profesional?.pasarelaPago || null,
         oauthDisponible: !!(intConf.MP_CLIENT_ID && intConf.MP_CLIENT_SECRET),
         stripeOauthDisponible: !!(intConf.STRIPE_CLIENT_ID && intConf.STRIPE_SECRET_KEY),
-        mpEmail: credenciales?.mercadopago?.email
+        mpEmail: mpConn?.providerEmail
+          || credenciales?.mercadopago?.email
           || (credenciales?.mercadopago?.mpUserId ? `ID: ${credenciales.mercadopago.mpUserId}` : null),
-        stripeEmail: credenciales?.stripe?.email || null,
+        stripeEmail: stripeConn?.providerEmail || credenciales?.stripe?.email || null,
       }
     });
   } catch (error) {
@@ -779,6 +903,15 @@ const mpOAuthCallback = async (req, res) => {
       }
     };
 
+    await upsertConnection(profesionalId, 'mercadopago', {
+      accessToken: mpData.access_token,
+      refreshToken: mpData.refresh_token || null,
+      providerUserId: mpData.user_id ? String(mpData.user_id) : null,
+      providerEmail: mpEmail,
+      status: 'conectado',
+      metadata: { scope: mpData.scope || null },
+    });
+
     await Profesional.update(
       { pagoCredenciales: JSON.stringify(credencialesObj), pasarelaPago: 'mercadopago' },
       { where: { id: profesionalId } }
@@ -794,6 +927,7 @@ const mpOAuthCallback = async (req, res) => {
 const desconectarPasarela = async (req, res, next) => {
   try {
     const profesionalId = req.user.sub;
+    await disconnectByProfesional(profesionalId);
     await Profesional.update(
       { pagoCredenciales: null, pasarelaPago: null },
       { where: { id: profesionalId } }
@@ -880,6 +1014,16 @@ const stripeOAuthCallback = async (req, res) => {
         publishableKey: stripeData.stripe_publishable_key || null,
       }
     };
+
+    await upsertConnection(profesionalId, 'stripe', {
+      accessToken: stripeData.access_token,
+      refreshToken: stripeData.refresh_token || null,
+      providerUserId: stripeData.stripe_user_id ? String(stripeData.stripe_user_id) : null,
+      providerEmail: stripeData.stripe_user_email || null,
+      publishableKey: stripeData.stripe_publishable_key || null,
+      status: 'conectado',
+      metadata: { scope: stripeData.scope || null },
+    });
 
     await Profesional.update(
       { pagoCredenciales: JSON.stringify(credencialesObj), pasarelaPago: 'stripe' },

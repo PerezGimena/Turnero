@@ -9,6 +9,9 @@ require('dotenv').config();
 
 const app = express();
 
+// Stripe requiere body raw para validar la firma webhook.
+app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
+
 // Middlewares Globales
 app.use(helmet());
 app.use(cors({

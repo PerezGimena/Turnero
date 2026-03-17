@@ -119,6 +119,7 @@ const crearReserva = async (req, res, next) => {
         requiresPago,
         pagoUrl: resultado.pagoUrl || null,
         preferenceId: resultado.preferenceId || null,
+        sessionId: resultado.sessionId || null,
       },
       message: requiresPago
         ? 'Turno reservado. Completá el pago para confirmar tu turno.'
@@ -143,6 +144,15 @@ const crearReserva = async (req, res, next) => {
           message: "Profesional no encontrado",
         });
     }
+    if (error.message === "PROFESIONAL_INACTIVO") {
+      return res
+        .status(403)
+        .json({
+          ok: false,
+          error: "PROFESIONAL_INACTIVO",
+          message: "Este profesional no está disponible para recibir reservas en este momento",
+        });
+    }
     next(error);
   }
 };
@@ -156,6 +166,8 @@ module.exports = {
   reprogramarTurnoPublico,
   crearPreferenciaPago,
   verificarPago,
+  crearCheckoutStripe,
+  verificarPagoStripe,
 };
 
 // GET /api/publico/:slug/turno/:id
@@ -293,6 +305,72 @@ async function verificarPago(req, res, next) {
     }
     if (error.message === 'TURNO_NO_ENCONTRADO') {
       return res.status(404).json({ ok: false, error: "TURNO_NO_ENCONTRADO" });
+    }
+    next(error);
+  }
+}
+
+// POST /api/publico/:slug/pago/stripe/session
+async function crearCheckoutStripe(req, res, next) {
+  try {
+    const { slug } = req.params;
+    const { turnoId } = req.body;
+
+    if (!turnoId) {
+      return res.status(400).json({ ok: false, error: 'FALTA_TURNO_ID', message: 'turnoId es requerido' });
+    }
+
+    const profesional = await Profesional.findOne({ where: { slug } });
+    if (!profesional) return res.status(404).json({ ok: false, error: 'PROFESIONAL_NO_ENCONTRADO' });
+
+    if (!profesional.pagoObligatorio || profesional.pasarelaPago !== 'stripe') {
+      return res.status(400).json({ ok: false, error: 'PAGO_STRIPE_NO_DISPONIBLE', message: 'El profesional no tiene Stripe habilitado para cobros' });
+    }
+
+    const turno = await Turno.findOne({
+      where: { id: turnoId, profesionalId: profesional.id },
+      include: [{ model: Paciente, as: 'paciente' }],
+    });
+    if (!turno) return res.status(404).json({ ok: false, error: 'TURNO_NO_ENCONTRADO' });
+
+    const { sessionId, checkoutUrl } = await pagoService.crearCheckoutStripe(turno, turno.paciente, profesional);
+    res.json({ ok: true, data: { sessionId, checkoutUrl } });
+  } catch (error) {
+    if (error.message === 'SIN_CREDENCIALES_STRIPE') {
+      return res.status(503).json({ ok: false, error: 'SIN_CREDENCIALES_STRIPE' });
+    }
+    next(error);
+  }
+}
+
+// POST /api/publico/:slug/pago/stripe/verificar
+async function verificarPagoStripe(req, res, next) {
+  try {
+    const { slug } = req.params;
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      return res.status(400).json({ ok: false, error: 'FALTA_SESSION_ID' });
+    }
+
+    const profesional = await Profesional.findOne({ where: { slug } });
+    if (!profesional) return res.status(404).json({ ok: false, error: 'PROFESIONAL_NO_ENCONTRADO' });
+
+    const { pago, turno } = await pagoService.verificarPagoStripe(String(sessionId), profesional);
+    res.json({
+      ok: true,
+      data: {
+        estado: pago.estado,
+        turnoEstado: turno.estado,
+        monto: pago.monto,
+        moneda: pago.moneda,
+      },
+    });
+  } catch (error) {
+    if (error.message === 'SIN_CREDENCIALES_STRIPE') {
+      return res.status(503).json({ ok: false, error: 'SIN_CREDENCIALES_STRIPE' });
+    }
+    if (error.message === 'TURNO_NO_ENCONTRADO') {
+      return res.status(404).json({ ok: false, error: 'TURNO_NO_ENCONTRADO' });
     }
     next(error);
   }

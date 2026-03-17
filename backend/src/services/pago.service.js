@@ -15,8 +15,9 @@
 // ============================================================
 
 const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
-const { Op } = require('sequelize');
+const Stripe = require('stripe');
 const { Pago, Turno, Profesional } = require('../models');
+const { getConnection } = require('./oauthConnection.service');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,27 @@ const _getAccessToken = (profesional) => {
   }
 };
 
+const _getStripeAccessTokenLegacy = (profesional) => {
+  if (!profesional.pagoCredenciales) return null;
+  try {
+    const creds = JSON.parse(profesional.pagoCredenciales);
+    return creds?.stripe?.accessToken || creds?.stripe?.secretKey || null;
+  } catch {
+    return null;
+  }
+};
+
+const _getProviderAccessToken = async (profesional, provider) => {
+  const conn = await getConnection(profesional.id, provider);
+  if (conn?.accessToken && conn.status !== 'desconectado') {
+    return conn.accessToken;
+  }
+
+  if (provider === 'mercadopago') return _getAccessToken(profesional);
+  if (provider === 'stripe') return _getStripeAccessTokenLegacy(profesional);
+  return null;
+};
+
 /**
  * Mapea el estado de pago de MP al estado interno del sistema.
  */
@@ -53,6 +75,15 @@ const _estadoMP = (mpStatus) => ({
   refunded:   'reembolsado',
   charged_back: 'reembolsado',
 }[mpStatus] || 'pendiente');
+
+const _estadoStripe = (status) => ({
+  succeeded: 'aprobado',
+  processing: 'pendiente',
+  requires_payment_method: 'rechazado',
+  requires_action: 'pendiente',
+  canceled: 'rechazado',
+  refunded: 'reembolsado',
+}[status] || 'pendiente');
 
 // ─── Procesamiento interno de pago ──────────────────────────────────────────
 
@@ -102,6 +133,48 @@ const _aplicarPago = async (payment, profesional) => {
   return { pago, turno };
 };
 
+const _aplicarPagoStripe = async ({
+  transaccionId,
+  profesional,
+  turnoReferencia,
+  amount,
+  currency,
+  status,
+}) => {
+  if (!transaccionId) throw new Error('TRANSACCION_STRIPE_INVALIDA');
+
+  const pagoExistente = await Pago.findOne({
+    where: { pasarela: 'stripe', transaccionId: String(transaccionId) },
+  });
+  if (pagoExistente) {
+    const turnoExistente = await Turno.findByPk(pagoExistente.turnoId);
+    return { pago: pagoExistente, turno: turnoExistente };
+  }
+
+  const turno = await Turno.findOne({
+    where: { referencia: turnoReferencia, profesionalId: profesional.id },
+  });
+  if (!turno) throw new Error('TURNO_NO_ENCONTRADO');
+
+  const estadoPago = _estadoStripe(status);
+  const pago = await Pago.create({
+    turnoId: turno.id,
+    profesionalId: profesional.id,
+    pacienteId: turno.pacienteId,
+    monto: Number(amount || profesional.montoPorTurno || 0),
+    moneda: (currency || profesional.moneda || 'ARS').toUpperCase(),
+    pasarela: 'stripe',
+    estado: estadoPago,
+    transaccionId: String(transaccionId),
+  });
+
+  if (estadoPago === 'aprobado') {
+    await turno.update({ estado: 'confirmado' });
+  }
+
+  return { pago, turno };
+};
+
 // ─── API pública del servicio ────────────────────────────────────────────────
 
 /**
@@ -113,7 +186,7 @@ const _aplicarPago = async (payment, profesional) => {
  * @returns {{ preferenceId: string, initPoint: string }}
  */
 const crearPreferenciaMP = async (turno, paciente, profesional) => {
-  const accessToken = _getAccessToken(profesional);
+  const accessToken = await _getProviderAccessToken(profesional, 'mercadopago');
   if (!accessToken) throw new Error('SIN_CREDENCIALES_MP');
 
   const apiUrl = process.env.API_URL  || 'http://localhost:3001';
@@ -164,7 +237,7 @@ const crearPreferenciaMP = async (turno, paciente, profesional) => {
  * @returns {{ pago: Pago, turno: Turno }}
  */
 const verificarPagoMP = async (paymentId, profesional) => {
-  const accessToken = _getAccessToken(profesional);
+  const accessToken = await _getProviderAccessToken(profesional, 'mercadopago');
   if (!accessToken) throw new Error('SIN_CREDENCIALES_MP');
 
   const client        = _clienteMP(accessToken);
@@ -174,14 +247,83 @@ const verificarPagoMP = async (paymentId, profesional) => {
   return _aplicarPago(payment, profesional);
 };
 
+const crearCheckoutStripe = async (turno, paciente, profesional) => {
+  const accessToken = await _getProviderAccessToken(profesional, 'stripe');
+  if (!accessToken) throw new Error('SIN_CREDENCIALES_STRIPE');
+
+  const appUrl = process.env.APP_URL || process.env.APP_DOMAIN || 'http://localhost:5173';
+  const stripe = new Stripe(accessToken);
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    customer_email: paciente.email,
+    success_url: `${appUrl}/${profesional.slug}/reservar/confirmado?stripe_session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl}/${profesional.slug}/reservar/formulario`,
+    metadata: {
+      turnoReferencia: turno.referencia,
+      profesionalId: String(profesional.id),
+    },
+    payment_intent_data: {
+      metadata: {
+        turnoReferencia: turno.referencia,
+        profesionalId: String(profesional.id),
+      },
+    },
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: String(profesional.moneda || 'ARS').toLowerCase(),
+          unit_amount: Math.round(Number(profesional.montoPorTurno || 0) * 100),
+          product_data: {
+            name: `Turno con ${profesional.nombre} ${profesional.apellido}`,
+            description: profesional.especialidad || 'Consulta médica',
+          },
+        },
+      },
+    ],
+  });
+
+  return { sessionId: session.id, checkoutUrl: session.url };
+};
+
+const verificarPagoStripe = async (sessionId, profesional) => {
+  const accessToken = await _getProviderAccessToken(profesional, 'stripe');
+  if (!accessToken) throw new Error('SIN_CREDENCIALES_STRIPE');
+
+  const stripe = new Stripe(accessToken);
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ['payment_intent'],
+  });
+
+  const paymentIntentId = typeof session.payment_intent === 'string'
+    ? session.payment_intent
+    : session.payment_intent?.id;
+  const paymentIntentStatus = typeof session.payment_intent === 'object'
+    ? session.payment_intent?.status
+    : (session.payment_status === 'paid' ? 'succeeded' : 'processing');
+
+  if (!session?.metadata?.turnoReferencia) {
+    throw new Error('EXTERNAL_REFERENCE_INVALIDA');
+  }
+
+  return _aplicarPagoStripe({
+    transaccionId: paymentIntentId || session.id,
+    profesional,
+    turnoReferencia: session.metadata.turnoReferencia,
+    amount: Number((session.amount_total || 0) / 100),
+    currency: session.currency,
+    status: paymentIntentStatus,
+  });
+};
+
 /**
  * Procesa una notificación de webhook de MercadoPago.
  * Resuelve el profesional desde el external_reference del pago.
  *
  * Estrategia de resolución de credenciales:
- *   1. Si existe MP_PLATFORM_ACCESS_TOKEN en env → lo usa directamente.
- *   2. Si no → parsea el profesionalId del external_reference y usa sus credenciales.
- *      Para ello, primero intenta usar el token de plataforma; si falla, itera profesionales.
+ *   1. Requiere MP_PLATFORM_ACCESS_TOKEN en env para leer el pago notificado.
+ *   2. Usa external_reference para resolver el profesional y aplicar el pago internamente.
  *
  * @param {string|number} paymentId - ID del pago notificado por MP
  */
@@ -196,39 +338,14 @@ const procesarWebhookMP = async (paymentId) => {
 
   let payment = null;
 
-  // Opción A: Token de plataforma configurado (más eficiente)
   const platformToken = process.env.MP_PLATFORM_ACCESS_TOKEN;
-  if (platformToken) {
-    const client        = _clienteMP(platformToken);
-    const paymentClient = new Payment(client);
-    payment = await paymentClient.get({ id: paymentId });
+  if (!platformToken) {
+    throw new Error('MP_PLATFORM_ACCESS_TOKEN_REQUERIDO');
   }
 
-  // Opción B: Sin token de plataforma → descubrir por external_reference
-  // Necesitamos un token válido para hacer la llamada. Usamos el primer profesional
-  // con credenciales MP que tenga el pago relacionado.
-  if (!payment) {
-    const profesionales = await Profesional.findAll({
-      where: {
-        pasarelaPago:     'mercadopago',
-        pagoCredenciales: { [Op.ne]: null },
-      },
-      attributes: ['id', 'pagoCredenciales', 'nombre', 'apellido', 'moneda', 'pasarelaPago', 'slug', 'montoPorTurno'],
-    });
-
-    for (const prof of profesionales) {
-      const token = _getAccessToken(prof);
-      if (!token) continue;
-      try {
-        const client        = _clienteMP(token);
-        const paymentClient = new Payment(client);
-        payment = await paymentClient.get({ id: paymentId });
-        break;
-      } catch {
-        // Este profesional no tiene este pago, probar con el siguiente
-      }
-    }
-  }
+  const client = _clienteMP(platformToken);
+  const paymentClient = new Payment(client);
+  payment = await paymentClient.get({ id: paymentId });
 
   if (!payment) throw new Error('PAGO_NO_ENCONTRADO_EN_MP');
 
@@ -245,4 +362,68 @@ const procesarWebhookMP = async (paymentId) => {
   return _aplicarPago(payment, profesional);
 };
 
-module.exports = { crearPreferenciaMP, verificarPagoMP, procesarWebhookMP };
+const procesarWebhookStripeEvent = async (event) => {
+  const type = event?.type;
+  if (!type) return { ok: true, mensaje: 'Evento Stripe sin tipo' };
+
+  if (type === 'checkout.session.completed') {
+    const session = event.data?.object;
+    if (!session || session.payment_status !== 'paid') {
+      return { ok: true, mensaje: 'Checkout no pagado, ignorado' };
+    }
+
+    const profesionalId = Number(session.metadata?.profesionalId);
+    const turnoReferencia = session.metadata?.turnoReferencia;
+    if (!profesionalId || !turnoReferencia) {
+      throw new Error('METADATA_STRIPE_INCOMPLETA');
+    }
+
+    const profesional = await Profesional.findByPk(profesionalId);
+    if (!profesional) throw new Error('PROFESIONAL_NO_ENCONTRADO');
+
+    const paymentIntentId = typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : session.payment_intent?.id;
+
+    return _aplicarPagoStripe({
+      transaccionId: paymentIntentId || session.id,
+      profesional,
+      turnoReferencia,
+      amount: Number((session.amount_total || 0) / 100),
+      currency: session.currency,
+      status: 'succeeded',
+    });
+  }
+
+  if (type === 'payment_intent.succeeded') {
+    const intent = event.data?.object;
+    const profesionalId = Number(intent?.metadata?.profesionalId);
+    const turnoReferencia = intent?.metadata?.turnoReferencia;
+    if (!profesionalId || !turnoReferencia) {
+      return { ok: true, mensaje: 'PaymentIntent sin metadata de negocio' };
+    }
+
+    const profesional = await Profesional.findByPk(profesionalId);
+    if (!profesional) throw new Error('PROFESIONAL_NO_ENCONTRADO');
+
+    return _aplicarPagoStripe({
+      transaccionId: intent.id,
+      profesional,
+      turnoReferencia,
+      amount: Number((intent.amount_received || intent.amount || 0) / 100),
+      currency: intent.currency,
+      status: intent.status,
+    });
+  }
+
+  return { ok: true, mensaje: `Evento Stripe ignorado: ${type}` };
+};
+
+module.exports = {
+  crearPreferenciaMP,
+  verificarPagoMP,
+  crearCheckoutStripe,
+  verificarPagoStripe,
+  procesarWebhookMP,
+  procesarWebhookStripeEvent,
+};

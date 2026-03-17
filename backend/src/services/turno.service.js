@@ -22,6 +22,9 @@ const crearReserva = async (slugProfesional, datosReserva) => {
     if (!profesional) {
       throw new Error('PROFESIONAL_NO_ENCONTRADO');
     }
+    if (!profesional.planActivo) {
+      throw new Error('PROFESIONAL_INACTIVO');
+    }
 
     // 2. Verificar disponibilidad (Race condition check)
     // Volvemos a calcular slots o verificamos específicamente este horario
@@ -55,7 +58,7 @@ const crearReserva = async (slugProfesional, datosReserva) => {
         dni: datosPaciente.dni || null,
         obraSocial: datosPaciente.obraSocial || null,
         numeroAfiliado: datosPaciente.numeroAfiliado || null,
-        tiemeObraSocial: !!datosPaciente.obraSocial
+        tieneObraSocial: !!datosPaciente.obraSocial
       }, { transaction: t });
     }
 
@@ -70,16 +73,15 @@ const crearReserva = async (slugProfesional, datosReserva) => {
     const referencia = await generarReferenciaUnica();
 
     // 6. Determinar Estado inicial
-    // Si el profesional requiere pago y tiene MercadoPago configurado → pendiente_pago
+    // Si el profesional requiere pago y usa pasarela online soportada → pendiente_pago
     // Si tiene confirmación automática → confirmado
     // En cualquier otro caso → pendiente (el profesional confirma manualmente)
-    const tieneMPConfigurado =
+    const tienePasarelaOnline =
       profesional.pagoObligatorio &&
-      profesional.pasarelaPago === 'mercadopago' &&
-      !!profesional.pagoCredenciales;
+      ['mercadopago', 'stripe'].includes(profesional.pasarelaPago);
 
     let estadoInicial;
-    if (tieneMPConfigurado) {
+    if (tienePasarelaOnline) {
       estadoInicial = 'pendiente_pago';
     } else if (profesional.confirmacionAutomatica) {
       estadoInicial = 'confirmado';
@@ -102,9 +104,9 @@ const crearReserva = async (slugProfesional, datosReserva) => {
       creadoManualmente: false
     }, { transaction: t });
 
-    // 8. Crear registro Pago pendiente solo para pagos presenciales o pasarelas no-MP
-    // Para MercadoPago el registro Pago lo crea el webhook when payment arrives
-    if (profesional.pagoObligatorio && profesional.pasarelaPago !== 'mercadopago') {
+    // 8. Crear registro Pago pendiente solo para pasarelas manuales/no automatizadas
+    // Para MercadoPago y Stripe el registro se crea al confirmar pago (verify/webhook)
+    if (profesional.pagoObligatorio && !['mercadopago', 'stripe'].includes(profesional.pasarelaPago)) {
       await Pago.create({
         turnoId: nuevoTurno.id,
         profesionalId: profesional.id,
@@ -118,18 +120,25 @@ const crearReserva = async (slugProfesional, datosReserva) => {
 
     await t.commit();
 
-    // 9. Generar preferencia de MercadoPago (fuera de transacción — llama a API externa)
+    // 9. Generar URL de pago online (fuera de transacción — llama a API externa)
     let pagoUrl = null;
     let preferenceId = null;
+    let sessionId = null;
 
     if (estadoInicial === 'pendiente_pago') {
       try {
-        const pref = await pagoService.crearPreferenciaMP(nuevoTurno, paciente, profesional);
-        pagoUrl = pref.initPoint;
-        preferenceId = pref.preferenceId;
-      } catch (mpErr) {
+        if (profesional.pasarelaPago === 'mercadopago') {
+          const pref = await pagoService.crearPreferenciaMP(nuevoTurno, paciente, profesional);
+          pagoUrl = pref.initPoint;
+          preferenceId = pref.preferenceId;
+        } else if (profesional.pasarelaPago === 'stripe') {
+          const checkout = await pagoService.crearCheckoutStripe(nuevoTurno, paciente, profesional);
+          pagoUrl = checkout.checkoutUrl;
+          sessionId = checkout.sessionId;
+        }
+      } catch (pagoErr) {
         // El turno ya fue creado. Loguear el error — el admin puede reprocesar luego.
-        console.error('[TurnoService] Error al crear preferencia MP:', mpErr.message);
+        console.error('[TurnoService] Error al crear URL de pago online:', pagoErr.message);
       }
     }
 
@@ -147,6 +156,7 @@ const crearReserva = async (slugProfesional, datosReserva) => {
       paciente,
       pagoUrl,
       preferenceId,
+      sessionId,
     };
 
   } catch (error) {

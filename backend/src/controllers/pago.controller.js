@@ -2,13 +2,33 @@ const { Pago, Paciente, Turno } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
+const _startOfDay = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const _endOfDay = (date) => {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+};
+
 const getPagos = async (req, res, next) => {
   try {
     const profesionalId = req.user.sub;
-    const { pagina = 1, porPagina = 20, estado, fechaDesde, fechaHasta } = req.query;
+    const {
+      pagina = 1,
+      porPagina = 20,
+      estado,
+      fechaDesde,
+      fechaHasta,
+      historico = 'false',
+    } = req.query;
 
-    const limit = parseInt(porPagina);
-    const offset = (parseInt(pagina) - 1) * limit;
+    const limit = Math.min(Math.max(parseInt(porPagina, 10) || 20, 1), 100);
+    const paginaNum = Math.max(parseInt(pagina, 10) || 1, 1);
+    const offset = (paginaNum - 1) * limit;
 
     const where = { profesionalId };
 
@@ -16,23 +36,25 @@ const getPagos = async (req, res, next) => {
       where.estado = estado;
     }
 
-    if (fechaDesde || fechaHasta) {
+    if (fechaDesde || fechaHasta || historico !== 'true') {
       where.createdAt = {};
+      if (historico !== 'true' && !fechaDesde && !fechaHasta) {
+        const inicioMes = new Date();
+        inicioMes.setDate(1);
+        where.createdAt[Op.gte] = _startOfDay(inicioMes);
+      }
+
       if (fechaDesde) {
-        // Asumiendo formato YYYY-MM-DD o ISO
         const dateDesde = new Date(fechaDesde);
         if (!isNaN(dateDesde.getTime())) {
-            where.createdAt[Op.gte] = dateDesde;
+          where.createdAt[Op.gte] = _startOfDay(dateDesde);
         }
       }
+
       if (fechaHasta) {
         const dateHasta = new Date(fechaHasta);
         if (!isNaN(dateHasta.getTime())) {
-            // Ajustar al final del día si solo viene la fecha
-            if (fechaHasta.length <= 10) {
-                dateHasta.setHours(23, 59, 59, 999);
-            }
-            where.createdAt[Op.lte] = dateHasta;
+          where.createdAt[Op.lte] = _endOfDay(dateHasta);
         }
       }
     }
@@ -59,7 +81,7 @@ const getPagos = async (req, res, next) => {
       data: rows,
       pagination: {
         total: count,
-        pagina: parseInt(pagina),
+        pagina: paginaNum,
         porPagina: limit,
         totalPaginas: Math.ceil(count / limit)
       }

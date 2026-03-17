@@ -12,4 +12,8 @@ const webhookController = require('../controllers/webhook.controller');
 //  La autenticidad se valida por firma HMAC (x-signature header).
 router.post('/mercadopago', webhookController.recibirWebhookMP);
 
+// POST /api/webhooks/stripe
+// Stripe notifica eventos de checkout/payment_intent aquí.
+router.post('/stripe', webhookController.recibirWebhookStripe);
+
 module.exports = router;
