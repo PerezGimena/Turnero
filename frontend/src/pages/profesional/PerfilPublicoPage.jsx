@@ -54,7 +54,7 @@ const PerfilPublico = () => {
   useEffect(() => {
     const fetchPerfil = async () => {
       try {
-        const { data } = await axios.get('http://localhost:3001/api/profesional/perfil', {
+        const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/profesional/perfil`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -115,7 +115,7 @@ const PerfilPublico = () => {
 
       const payload = { ...restoPerfil, diasConfiguracion };
 
-      await axios.put('http://localhost:3001/api/profesional/perfil', payload, {
+      await axios.put(`${import.meta.env.VITE_API_URL}/profesional/perfil`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setMensajeGuardado('ok');

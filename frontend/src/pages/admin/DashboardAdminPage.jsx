@@ -98,11 +98,11 @@ export default function DashboardAdminPage() {
   const [ultimosProfesionales, setUltimosProfesionales] = useState([]);
 
   useEffect(() => {
-    axios.get('http://localhost:3001/api/admin/dashboard/metricas', { headers })
+    axios.get(`${import.meta.env.VITE_API_URL}/admin/dashboard/metricas`, { headers })
       .then(({ data }) => setApiMetricas(data.data || {}))
       .catch(console.error);
 
-    axios.get('http://localhost:3001/api/admin/profesionales?porPagina=5', { headers })
+    axios.get(`${import.meta.env.VITE_API_URL}/admin/profesionales?porPagina=5`, { headers })
       .then(({ data }) => setUltimosProfesionales((data.data || []).map(p => ({
         ...p,
         nombre: `${p.nombre} ${p.apellido}`,

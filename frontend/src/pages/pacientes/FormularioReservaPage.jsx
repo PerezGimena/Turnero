@@ -112,7 +112,7 @@ export default function FormularioReservaPage() {
     if (!slug) return;
     const fetchProfesional = async () => {
       try {
-        const { data } = await axios.get(`http://localhost:3001/api/publico/${slug}`);
+        const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/publico/${slug}`);
         if (data.ok) {
           setProfesional(data.data);
         } else {
@@ -180,7 +180,7 @@ paciente: {
 }
 };
 
-      const response = await axios.post(`http://localhost:3001/api/publico/${slug}/reservar`, payload);
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/publico/${slug}/reservar`, payload);
 
       if (response.data.ok) {
         const turnoCreado = response.data.data;

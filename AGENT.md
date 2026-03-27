@@ -1,7 +1,7 @@
 # Sistema Multi-Agente TurnoSalud
 
 > Arquitectura de agentes IA especializados para el desarrollo del sistema.
-> Última actualización del sistema de agentes: 17/03/2026 — Roadmap post-auditoría estabilizado y automatizado: smoke test unificado de pagos/webhooks agregado a npm scripts y validado en ejecución real.
+> Última actualización del sistema de agentes: 17/03/2026 — Deploy productivo completado en VPS para TurnoSalud (frontend+backend+MySQL remoto), con dominios y HTTPS activos sin afectar otras apps.
 
 ---
 
@@ -85,12 +85,13 @@
 | 17/03/2026 | coordinador+backend+webhook | Estabilización final: webhook Stripe toma `STRIPE_SECRET_KEY` desde Integraciones (BD) con fallback env, y smoke tests HTTP locales confirman `200` en Stripe firmado y `401` en MP sin firma en producción. | backend/src/controllers/webhook.controller.js, AGENT.md | ✅ Completado |
 | 17/03/2026 | coordinador+backend+qa+stripe | Validación end-to-end interna de cobro Stripe via webhook: creación controlada de profesional/paciente/turno en BD, procesamiento `checkout.session.completed`, verificación de transición `turno -> confirmado`, creación de `Pago` aprobado e idempotencia sin duplicados en segundo evento; limpieza de datos de prueba aplicada. | backend/src/services/pago.service.js, backend/src/models/Pago.js, backend/src/models/Turno.js, AGENT.md | ✅ Completado |
 | 17/03/2026 | coordinador+backend+qa+devops | Cierre operativo: script automático `scripts/smoke-payments.js` para validar webhooks Stripe/MP + flujo Stripe interno con idempotencia y cleanup; integrado a `npm test` y `npm run test:payments`. | backend/scripts/smoke-payments.js, backend/package.json, AGENT.md | ✅ Completado |
+| 17/03/2026 | coordinador+devops+database+backend+frontend | Deploy productivo en VPS Hostinger sin impacto a otras apps: creación DB `turnosalud`, usuario app + root remoto MySQL (`root`@`%`), backend en PM2 (`turnosalud-backend`), frontend estático en `/var/www/misturnos`, vhost Nginx dedicado y SSL Let's Encrypt activo para `misturnos.soluxioncode.com` y `api.misturnos.soluxioncode.com`. | AGENT.md, backend/.env, frontend/.env, /etc/nginx/sites-available/misturnos, /var/www/misturnos/*, PM2 process list, MySQL users/grants | ✅ Completado |
 
 ---
 
 # Estado del Proyecto
 
-> Última actualización: 17/03/2026 — Roadmap post-auditoría estabilizado y con verificación automatizada reproducible por npm para pagos y webhooks.
+> Última actualización: 17/03/2026 — Deploy productivo completado y operativo con frontend+backend en HTTPS y MySQL remoto habilitado.
 
 ## Fases de Implementación
 

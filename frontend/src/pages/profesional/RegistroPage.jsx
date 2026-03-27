@@ -40,7 +40,7 @@ export default function RegistroPage() {
     setErrorRegistro('')
 
     try {
-      const response = await axios.post('http://localhost:3001/api/auth/profesional/registro', {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/profesional/registro`, {
         nombre: data.nombre,
         apellido: data.apellido,
         email: data.email,

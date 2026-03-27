@@ -28,7 +28,7 @@ const PagosRecibidos = () => {
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    axios.get('http://localhost:3001/api/profesional/pagos?pagina=1&porPagina=100', { headers })
+    axios.get(`${import.meta.env.VITE_API_URL}/profesional/pagos?pagina=1&porPagina=100`, { headers })
       .then(({ data }) => {
         const filas = (data.data?.pagos || []).map(p => ({
           id: p.id,

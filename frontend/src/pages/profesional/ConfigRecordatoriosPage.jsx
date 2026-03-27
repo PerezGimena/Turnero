@@ -30,7 +30,7 @@ const ConfiguracionRecordatorios = () => {
   });
 
   useEffect(() => {
-    axios.get('http://localhost:3001/api/profesional/recordatorios/config', { headers })
+    axios.get(`${import.meta.env.VITE_API_URL}/profesional/recordatorios/config`, { headers })
       .then(({ data }) => {
         const d = data.data;
         setWhatsappProveedorConfigurado(!!d.whatsappProveedorConfigurado);
@@ -57,7 +57,7 @@ const ConfiguracionRecordatorios = () => {
   async function guardar() {
     setGuardando(true);
     try {
-      await axios.put('http://localhost:3001/api/profesional/recordatorios/config', {
+      await axios.put(`${import.meta.env.VITE_API_URL}/profesional/recordatorios/config`, {
         emailHabilitado: config.emailActive,
         whatsappHabilitado: config.whatsappActive,
         whatsappNumero: config.whatsappNumber,
@@ -89,7 +89,7 @@ const ConfiguracionRecordatorios = () => {
 
   async function enviarPrueba() {
     try {
-      await axios.post('http://localhost:3001/api/profesional/recordatorios/prueba', {}, { headers });
+      await axios.post(`${import.meta.env.VITE_API_URL}/profesional/recordatorios/prueba`, {}, { headers });
       alert('Recordatorio de prueba enviado');
     } catch (e) {
       console.error(e);

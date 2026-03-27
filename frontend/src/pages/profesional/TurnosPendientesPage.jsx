@@ -50,7 +50,7 @@ export default function TurnosPendientesPage() {
     setError(null);
     try {
       const { data } = await axios.get(
-        "http://localhost:3001/api/profesional/turnos?estado=pendiente&porPagina=100",
+        `${import.meta.env.VITE_API_URL}/profesional/turnos?estado=pendiente&porPagina=100`,
         { headers }
       );
       if (data.ok) {
@@ -68,7 +68,7 @@ export default function TurnosPendientesPage() {
     setAccionando(id);
     try {
       await axios.patch(
-        `http://localhost:3001/api/profesional/turnos/${id}/confirmar`,
+        `${import.meta.env.VITE_API_URL}/profesional/turnos/${id}/confirmar`,
         {},
         { headers }
       );
@@ -85,7 +85,7 @@ export default function TurnosPendientesPage() {
     setAccionando(id);
     try {
       await axios.patch(
-        `http://localhost:3001/api/profesional/turnos/${id}/rechazar`,
+        `${import.meta.env.VITE_API_URL}/profesional/turnos/${id}/rechazar`,
         { motivo: motivoRechazo || "Rechazado por el profesional" },
         { headers }
       );
@@ -106,7 +106,7 @@ export default function TurnosPendientesPage() {
       await Promise.all(
         turnos.map(t =>
           axios.patch(
-            `http://localhost:3001/api/profesional/turnos/${t.id}/confirmar`,
+            `${import.meta.env.VITE_API_URL}/profesional/turnos/${t.id}/confirmar`,
             {},
             { headers }
           )

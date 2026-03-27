@@ -6,7 +6,11 @@ import {
   CreditCard, Smartphone, MessageCircle
 } from "lucide-react";
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:3001/api";
+const API = import.meta.env.VITE_API_URL;
+
+if (!API) {
+  throw new Error("VITE_API_URL no está definida");
+}
 
 const CAMPOS = [
   {
@@ -130,7 +134,14 @@ export default function IntegracionesAdminPage() {
   const [guardado, setGuardado]   = useState(false);
   const [error, setError]         = useState(null);
 
-  const apiPublicUrl = import.meta.env.VITE_API_URL?.replace("/api", "") ?? "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL;
+
+if (!API_URL) {
+  throw new Error("Falta VITE_API_URL");
+}
+
+const apiPublicUrl = API_URL.replace(/\/api$/, "");
+
 
   useEffect(() => {
     axios

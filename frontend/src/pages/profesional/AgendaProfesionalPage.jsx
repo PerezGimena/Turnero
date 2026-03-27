@@ -138,7 +138,7 @@ export default function AgendaProfesionalPage() {
 
         const responses = await Promise.all(
           dias.map(d =>
-            axios.get(`http://localhost:3001/api/profesional/turnos?fecha=${toKey(d)}`, configReq)
+            axios.get(`${import.meta.env.VITE_API_URL}/profesional/turnos?fecha=${toKey(d)}`, configReq)
           )
         );
 
@@ -194,12 +194,12 @@ export default function AgendaProfesionalPage() {
       let body = {};
 
       if (nuevoEstado === "CONFIRMADO") {
-        url = `http://localhost:3001/api/profesional/turnos/${turno.id}/confirmar`;
+        url = `${import.meta.env.VITE_API_URL}/profesional/turnos/${turno.id}/confirmar`;
       } else if (nuevoEstado === "CANCELADO") {
-        url = `http://localhost:3001/api/profesional/turnos/${turno.id}/rechazar`;
+        url = `${import.meta.env.VITE_API_URL}/profesional/turnos/${turno.id}/rechazar`;
         body = { motivo: "Cancelado desde Agenda" };
       } else if (nuevoEstado === "AUSENTE") {
-        url = `http://localhost:3001/api/profesional/turnos/${turno.id}/rechazar`;
+        url = `${import.meta.env.VITE_API_URL}/profesional/turnos/${turno.id}/rechazar`;
         body = { motivo: "Ausente" };
         nuevoEstado = "cancelado";
       }
