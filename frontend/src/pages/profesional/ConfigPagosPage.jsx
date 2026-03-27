@@ -50,7 +50,7 @@ const ConfigPagosProfesional = () => {
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    axios.get('http://localhost:3001/api/profesional/perfil', { headers })
+    axios.get(`${import.meta.env.VITE_API_URL}/profesional/perfil`, { headers })
       .then(({ data }) => {
         const p = data.data;
         if (p.pagoObligatorio !== undefined) setPagoObligatorio(p.pagoObligatorio);
@@ -59,7 +59,7 @@ const ConfigPagosProfesional = () => {
       })
       .catch(console.error);
     // Cargar estado de credenciales
-    axios.get('http://localhost:3001/api/profesional/pagos-credenciales', { headers })
+    axios.get(`${import.meta.env.VITE_API_URL}/profesional/pagos-credenciales`, { headers })
       .then(({ data }) => {
         if (data.ok) {
           const connected = mpConnected === 'true' || stripeConnected === 'true';
@@ -78,7 +78,7 @@ const ConfigPagosProfesional = () => {
     setConectando(true);
     setErrorCredenciales(null);
     try {
-      const { data } = await axios.get('http://localhost:3001/api/profesional/pagos-credenciales/mp-oauth-url', { headers });
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/profesional/pagos-credenciales/mp-oauth-url`, { headers });
       if (data.ok && data.url) {
         window.location.href = data.url;
       }
@@ -93,7 +93,7 @@ const ConfigPagosProfesional = () => {
     setDesconectando(true);
     setErrorCredenciales(null);
     try {
-      await axios.delete('http://localhost:3001/api/profesional/pagos-credenciales', { headers });
+      await axios.delete(`${import.meta.env.VITE_API_URL}/profesional/pagos-credenciales`, { headers });
       setStatusConexion('DESCONECTADO');
       setMpEmail(null);
       setStripeEmail(null);
@@ -108,7 +108,7 @@ const ConfigPagosProfesional = () => {
     setConectando(true);
     setErrorCredenciales(null);
     try {
-      const { data } = await axios.get('http://localhost:3001/api/profesional/pagos-credenciales/stripe-oauth-url', { headers });
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/profesional/pagos-credenciales/stripe-oauth-url`, { headers });
       if (data.ok && data.url) {
         window.location.href = data.url;
       }
@@ -121,7 +121,7 @@ const ConfigPagosProfesional = () => {
   async function guardar() {
     setGuardando(true);
     try {
-      await axios.put('http://localhost:3001/api/profesional/perfil', {
+      await axios.put(`${import.meta.env.VITE_API_URL}/profesional/perfil`, {
         pagoObligatorio,
         montoPorTurno: parseFloat(monto) || 0,
         moneda,

@@ -71,7 +71,7 @@ export default function PacientesPage() {
     setCargando(true);
     try {
       const params = new URLSearchParams({ pagina: p, porPagina: POR_PAGINA, busqueda: b });
-      const { data } = await axios.get(`http://localhost:3001/api/profesional/pacientes?${params}`, { headers });
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/profesional/pacientes?${params}`, { headers });
       setPacientes(data.data || []);
       setPagination(data.pagination || { total: 0, pagina: p, totalPaginas: 1 });
     } catch (e) {
@@ -93,7 +93,7 @@ export default function PacientesPage() {
   useEffect(() => {
     if (!panelPaciente) { setDetalle(null); return; }
     setCargandoDetalle(true);
-    axios.get(`http://localhost:3001/api/profesional/pacientes/${panelPaciente.id}`, { headers })
+    axios.get(`${import.meta.env.VITE_API_URL}/profesional/pacientes/${panelPaciente.id}`, { headers })
       .then(({ data }) => setDetalle(data.data))
       .catch(console.error)
       .finally(() => setCargandoDetalle(false));
@@ -103,7 +103,7 @@ export default function PacientesPage() {
     if (!form.nombre || !form.apellido || !form.email || !form.telefono) return;
     setGuardando(true);
     try {
-      await axios.post('http://localhost:3001/api/profesional/pacientes', form, { headers });
+      await axios.post(`${import.meta.env.VITE_API_URL}/profesional/pacientes`, form, { headers });
       setModalAgregar(false);
       setForm({ nombre: '', apellido: '', email: '', telefono: '', dni: '', obraSocial: '' });
       cargarPacientes(1, busqueda);
@@ -131,11 +131,11 @@ export default function PacientesPage() {
           telefono: panelPaciente.telefono || '—',
         },
       };
-      await axios.post('http://localhost:3001/api/profesional/turnos', payload, { headers });
+      await axios.post(`${import.meta.env.VITE_API_URL}/profesional/turnos`, payload, { headers });
       setModalNuevoTurno(false);
       setFormNuevoTurno({ fecha: '', horaInicio: '', modalidad: 'presencial', notas: '' });
       // Refrescar detalle del paciente para mostrar el nuevo turno
-      const { data } = await axios.get(`http://localhost:3001/api/profesional/pacientes/${panelPaciente.id}`, { headers });
+      const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/profesional/pacientes/${panelPaciente.id}`, { headers });
       setDetalle(data.data);
     } catch (e) {
       setErrorTurno(e.response?.data?.message || 'Error al crear el turno. Verificá los datos.');
@@ -149,7 +149,7 @@ export default function PacientesPage() {
     setEnviandoMensaje(true);
     try {
       await axios.post(
-        `http://localhost:3001/api/profesional/pacientes/${panelPaciente.id}/mensaje`,
+        `${import.meta.env.VITE_API_URL}/profesional/pacientes/${panelPaciente.id}/mensaje`,
         { asunto: formMensaje.asunto, mensaje: formMensaje.texto },
         { headers }
       );

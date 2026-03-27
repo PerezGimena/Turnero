@@ -76,7 +76,7 @@ export default function LandingProfesionalPage() {
   useEffect(() => {
     const fetchProfesional = async () => {
       try {
-        const response = await axios.get(`http://localhost:3001/api/publico/${slug}`);
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/publico/${slug}`);
         const data = response.data.data;
 
         // Transformar data del backend al formato del frontend

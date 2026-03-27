@@ -158,7 +158,7 @@ export default function GestionTurnoPage() {
   const [procesando, setProcesando] = useState(false);
 
   useEffect(() => {
-    axios.get(`http://localhost:3001/api/publico/${slug}/turno/${id}`)
+    axios.get(`${import.meta.env.VITE_API_URL}/publico/${slug}/turno/${id}`)
       .then(({ data }) => {
         const d = data.data;
         // Normalizar estado a mayúsculas para compatibilidad con BadgeEstado
@@ -171,7 +171,7 @@ export default function GestionTurnoPage() {
   useEffect(() => {
     if (!nuevaFecha) { setHorariosDisponibles([]); return; }
     setCargandoHorarios(true);
-    axios.get(`http://localhost:3001/api/publico/${slug}/horarios?fecha=${nuevaFecha}`)
+    axios.get(`${import.meta.env.VITE_API_URL}/publico/${slug}/horarios?fecha=${nuevaFecha}`)
       .then(({ data }) => setHorariosDisponibles((data.data || []).filter(s => s.disponible).map(s => s.hora)))
       .catch(console.error)
       .finally(() => setCargandoHorarios(false));
@@ -183,7 +183,7 @@ export default function GestionTurnoPage() {
   async function confirmarCancelacion() {
     setProcesando(true);
     try {
-      await axios.patch(`http://localhost:3001/api/publico/${slug}/turno/${id}/cancelar`, { motivo: motivoCancelacion });
+      await axios.patch(`${import.meta.env.VITE_API_URL}/publico/${slug}/turno/${id}/cancelar`, { motivo: motivoCancelacion });
       setTurno(t => ({ ...t, estado: "CANCELADO", motivoCancelacion, fechaCancelacion: new Date().toISOString() }));
       setModalCancelar(false);
     } catch (e) { console.error(e); }
@@ -194,7 +194,7 @@ export default function GestionTurnoPage() {
     if (!nuevaFecha || !nuevoHorario) return;
     setProcesando(true);
     try {
-      await axios.patch(`http://localhost:3001/api/publico/${slug}/turno/${id}/reprogramar`, { fecha: nuevaFecha, horaInicio: nuevoHorario });
+      await axios.patch(`${import.meta.env.VITE_API_URL}/publico/${slug}/turno/${id}/reprogramar`, { fecha: nuevaFecha, horaInicio: nuevoHorario });
       setTurno(t => ({ ...t, fecha: nuevaFecha, hora: nuevoHorario }));
       setModalReprogramar(false);
       setNuevaFecha(null);

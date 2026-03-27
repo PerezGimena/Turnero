@@ -110,9 +110,9 @@ export default function DashboardProfesionalPage() {
 
         // Fetch paralelo: Metricas + Turnos Hoy + Pendientes
         const [resMetricas, resTurnosHoy, resPendientes] = await Promise.all([
-          axios.get('http://localhost:3001/api/profesional/dashboard/metricas', config),
-          axios.get(`http://localhost:3001/api/profesional/turnos?fecha=${hoyStr}`, config),
-          axios.get(`http://localhost:3001/api/profesional/turnos?estado=pendiente&limit=5`, config)
+          axios.get(`${import.meta.env.VITE_API_URL}/profesional/dashboard/metricas`, config),
+          axios.get(`${import.meta.env.VITE_API_URL}/profesional/turnos?fecha=${hoyStr}`, config),
+          axios.get(`${import.meta.env.VITE_API_URL}/profesional/turnos?estado=pendiente&limit=5`, config)
         ]);
 
         if (resMetricas.data.ok) setMetricasData(resMetricas.data.data);
@@ -144,7 +144,7 @@ export default function DashboardProfesionalPage() {
         if (busqueda.length > 2) {
             try {
                 const config = { headers: { Authorization: `Bearer ${token}` } };
-                const { data } = await axios.get(`http://localhost:3001/api/profesional/pacientes?busqueda=${busqueda}`, config);
+                const { data } = await axios.get(`${import.meta.env.VITE_API_URL}/profesional/pacientes?busqueda=${busqueda}`, config);
                 if (data.ok) {
                     setSugerencias(data.data);
                 }
@@ -184,14 +184,14 @@ export default function DashboardProfesionalPage() {
             } : undefined
           };
 
-          const { data } = await axios.post(`http://localhost:3001/api/profesional/turnos`, payload, config);
+          const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/profesional/turnos`, payload, config);
 
           if (data.ok) {
               setModalNuevoTurno(false);
               // Recargar turnos si es fecha de hoy
               const hoyStr = new Date().toISOString().split('T')[0];
               if (formTurno.fecha === hoyStr) {
-                  const res = await axios.get(`http://localhost:3001/api/profesional/turnos?fecha=${hoyStr}`, config);
+                  const res = await axios.get(`${import.meta.env.VITE_API_URL}/profesional/turnos?fecha=${hoyStr}`, config);
                   if (res.data.ok) setTurnosHoy(res.data.data);
               }
               // Reset form
@@ -210,7 +210,7 @@ export default function DashboardProfesionalPage() {
   async function confirmarTurno(id) {
     try {
         const config = { headers: { Authorization: `Bearer ${token}` } };
-        const { data } = await axios.patch(`http://localhost:3001/api/profesional/turnos/${id}/confirmar`, {}, config);
+        const { data } = await axios.patch(`${import.meta.env.VITE_API_URL}/profesional/turnos/${id}/confirmar`, {}, config);
         
         if (data.ok) {
              setTurnosHoy(prev => prev.map(t => t.id === id ? { ...t, estado: "confirmado" } : t));
@@ -226,7 +226,7 @@ export default function DashboardProfesionalPage() {
     try {
         const config = { headers: { Authorization: `Bearer ${token}` } };
         // Usamos rechazar como cancelar por ahora, o implementamos patch especifico
-        const { data } = await axios.patch(`http://localhost:3001/api/profesional/turnos/${id}/rechazar`, { motivo: "Ausente" }, config);
+        const { data } = await axios.patch(`${import.meta.env.VITE_API_URL}/profesional/turnos/${id}/rechazar`, { motivo: "Ausente" }, config);
         if (data.ok) {
             setTurnosHoy(prev => prev.map(t => t.id === id ? { ...t, estado: "cancelado" } : t));
         }

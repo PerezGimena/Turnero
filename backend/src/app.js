@@ -9,6 +9,9 @@ require('dotenv').config();
 
 const app = express();
 
+// Necesario detrás de Nginx/Proxy para rate-limit e IP real de cliente.
+app.set('trust proxy', 1);
+
 // Stripe requiere body raw para validar la firma webhook.
 app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
 

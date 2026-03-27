@@ -32,7 +32,7 @@ export default function AdminLoginPage() {
     setCargando(true)
     setErrorGlobal('')
     try {
-      const response = await axios.post('http://localhost:3001/api/auth/admin/login', data)
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/admin/login`, data)
       if (response.data.ok) {
         login(response.data.data.usuario, response.data.data.token)
         navigate('/admin/dashboard')

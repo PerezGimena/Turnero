@@ -33,7 +33,7 @@ export default function LoginPage() {
     setErrorLogin('')
 
     try {
-      const response = await axios.post('http://localhost:3001/api/auth/profesional/login', {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/auth/profesional/login`, {
         email: data.email,
         password: data.password
       })

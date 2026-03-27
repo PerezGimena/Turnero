@@ -56,7 +56,7 @@ export default function GestionProfesionalesPage() {
   });
 
   const cargarProfesionales = useCallback(() => {
-    axios.get('http://localhost:3001/api/admin/profesionales?porPagina=100', { headers })
+    axios.get(`${import.meta.env.VITE_API_URL}/admin/profesionales?porPagina=100`, { headers })
       .then(({ data }) => setProfesionales((data.data || []).map(normalizar)))
       .catch(console.error);
   }, [token]);
@@ -102,7 +102,7 @@ export default function GestionProfesionalesPage() {
     if (!prof) return;
     const nuevoPlanActivo = prof.estado !== 'Activo';
     try {
-      await axios.patch(`http://localhost:3001/api/admin/profesionales/${id}/estado`, { planActivo: nuevoPlanActivo }, { headers });
+      await axios.patch(`${import.meta.env.VITE_API_URL}/admin/profesionales/${id}/estado`, { planActivo: nuevoPlanActivo }, { headers });
       const cambio = { planActivo: nuevoPlanActivo, estado: nuevoPlanActivo ? 'Activo' : 'Inactivo', plan: nuevoPlanActivo ? 'Pro' : 'Básico' };
       setProfesionales(ps => ps.map(p => p.id === id ? { ...p, ...cambio } : p));
       if (panelProf?.id === id) setPanelProf(p => ({ ...p, ...cambio }));
@@ -111,7 +111,7 @@ export default function GestionProfesionalesPage() {
 
   async function eliminar(id) {
     try {
-      await axios.delete(`http://localhost:3001/api/admin/profesionales/${id}`, { headers });
+      await axios.delete(`${import.meta.env.VITE_API_URL}/admin/profesionales/${id}`, { headers });
       setProfesionales(ps => ps.filter(p => p.id !== id));
       setModalEliminar(null);
       if (panelProf?.id === id) setPanelProf(null);
@@ -139,7 +139,7 @@ export default function GestionProfesionalesPage() {
     try {
       if (modalForm === 'nuevo') {
         if (!form.password) { alert('La contraseña es requerida para un nuevo profesional'); setGuardando(false); return; }
-        const { data } = await axios.post('http://localhost:3001/api/admin/profesionales', {
+        const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/admin/profesionales`, {
           nombre: form.nombre, apellido: form.apellido, email: form.email,
           password: form.password, slug: form.slug, especialidad: form.especialidad
         }, { headers });
@@ -148,7 +148,7 @@ export default function GestionProfesionalesPage() {
       } else {
         const payload = { nombre: form.nombre, apellido: form.apellido, email: form.email, slug: form.slug, especialidad: form.especialidad };
         if (form.password) payload.password = form.password;
-        const { data } = await axios.put(`http://localhost:3001/api/admin/profesionales/${modalForm.id}`, payload, { headers });
+        const { data } = await axios.put(`${import.meta.env.VITE_API_URL}/admin/profesionales/${modalForm.id}`, payload, { headers });
         if (data.ok) { cargarProfesionales(); setModalForm(null); }
         else alert(data.message || 'Error al actualizar');
       }
